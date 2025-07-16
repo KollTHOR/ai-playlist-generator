@@ -3,7 +3,7 @@ import axios from "axios";
 import { PlexTrack } from "@/types";
 
 export async function GET(request: NextRequest) {
-  const { PLEX_TOKEN, PLEX_SERVER_URL } = process.env;
+  const { PLEX_TOKEN, PLEX_SERVER_URL, PLEX_ACCOUNT_ID } = process.env;
 
   if (!PLEX_TOKEN || !PLEX_SERVER_URL) {
     return NextResponse.json(
@@ -14,11 +14,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const response = await axios.get(
-      `${PLEX_SERVER_URL}/status/sessions/history/all?X-Plex-Token=${PLEX_TOKEN}`,
+      `${PLEX_SERVER_URL}/status/sessions/history/${PLEX_ACCOUNT_ID}?X-Plex-Token=${PLEX_TOKEN}`,
       {
-        headers: {
-          Accept: "application/json",
-        },
+        headers: { Accept: "application/json" },
       }
     );
 

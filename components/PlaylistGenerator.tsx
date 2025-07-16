@@ -5,14 +5,16 @@ import { useState, useEffect } from "react";
 import {
   Play,
   Music,
-  Loader2,
   Brain,
   Search,
   Users,
   Album,
+  Loader2,
 } from "lucide-react";
 import ModelSelector from "./ModelSelector";
 import { PlexTrack, AIRecommendation } from "@/types";
+import HistoryDisplay from "./HistoryDisplay";
+import ProgressBar from "./ProgressBar";
 
 const PlaylistGenerator: React.FC = () => {
   // State management
@@ -35,60 +37,46 @@ const PlaylistGenerator: React.FC = () => {
   const [artistAvailability, setArtistAvailability] = useState<any>(null);
   const [albumAvailability, setAlbumAvailability] = useState<any>(null);
 
-  const [selectedTimeFrame, setSelectedTimeFrame] = useState<string>("all");
-  const [filteredHistory, setFilteredHistory] = useState<PlexTrack[]>([]);
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
 
-  const timeFrameOptions = [
-    { value: "all", label: "All Time" },
-    { value: "week", label: "Last Week" },
-    { value: "month", label: "Last Month" },
-    { value: "quarter", label: "Last 3 Months" },
-    { value: "year", label: "Last Year" },
-  ];
+  // ADD THIS: Plex configuration for client-side image loading
+  const [plexConfig, setPlexConfig] = useState<{
+    serverUrl: string;
+    token: string;
+  }>({
+    serverUrl: "",
+    token: "",
+  });
 
-  useEffect(() => {
-    const filtered = filterHistoryByTimeFrame(
-      listeningHistory,
-      selectedTimeFrame
-    );
-    setFilteredHistory(filtered);
-  }, [listeningHistory, selectedTimeFrame]);
-
-  const filterHistoryByTimeFrame = (
-    history: PlexTrack[],
-    timeFrame: string
-  ): PlexTrack[] => {
-    if (timeFrame === "all") return history;
-
-    const now = new Date();
-    const cutoffDate = new Date();
-
-    switch (timeFrame) {
-      case "week":
-        cutoffDate.setDate(now.getDate() - 7);
-        break;
-      case "month":
-        cutoffDate.setMonth(now.getMonth() - 1);
-        break;
-      case "quarter":
-        cutoffDate.setMonth(now.getMonth() - 3);
-        break;
-      case "year":
-        cutoffDate.setFullYear(now.getFullYear() - 1);
-        break;
-    }
-
-    return history.filter((track) => {
-      // Assuming your PlexTrack has a timestamp field
-      const trackDate = new Date(track.addedAt * 1000); // Convert Unix timestamp
-      return trackDate >= cutoffDate;
+  const markStepCompleted = (stepId: string) => {
+    setCompletedSteps((prev) => {
+      if (!prev.includes(stepId)) {
+        return [...prev, stepId];
+      }
+      return prev;
     });
+  };
+
+  const handleStepNavigation = (stepId: string) => {
+    // Only allow navigation to completed steps or the next logical step
+    const allowedSteps = ["model", ...completedSteps];
+
+    if (allowedSteps.includes(stepId)) {
+      setCurrentFlow(stepId as any);
+      setIsProcessing(false);
+      setError(null);
+    }
   };
 
   // Load Plex Data Function
   const loadPlexData = async (): Promise<void> => {
     setLoading(true);
     try {
+      setPlexConfig({
+        serverUrl: process.env.PLEX_SERVER_URL || "http://localhost:32400",
+        token: process.env.PLEX_TOKEN || "",
+      });
+
       const [historyRes, libraryRes] = await Promise.all([
         fetch("/api/plex/history"),
         fetch("/api/plex/library"),
@@ -97,15 +85,15 @@ const PlaylistGenerator: React.FC = () => {
       const history: PlexTrack[] = await historyRes.json();
       const libraryData = await libraryRes.json();
 
-      // Don't limit history here - let the AI analysis function decide
       const fullHistory = history || [];
-      console.log(`Found ${fullHistory.length} tracks in listening history`);
-
       setListeningHistory(fullHistory);
       setTotalLibraryCount(
         libraryData.totalLibraryCount || libraryData.length || 0
       );
       setUserLibrary(libraryData.tracks || libraryData);
+
+      // Mark data step as completed
+      markStepCompleted("data");
     } catch (error) {
       console.error("Error loading Plex data:", error);
       setError("Failed to load music data. Please check your configuration.");
@@ -115,21 +103,16 @@ const PlaylistGenerator: React.FC = () => {
   };
 
   // Step 3: Analyze artists and get recommendations
-  const analyzeArtistsAndRecommend = async (
-    historyToAnalyze?: PlexTrack[]
-  ): Promise<void> => {
+  const analyzeArtistsAndRecommend = async (): Promise<void> => {
     setCurrentFlow("analyzing");
     setIsProcessing(true);
 
     try {
-      const analysisHistory = historyToAnalyze || filteredHistory;
-      // Intelligently sample listening history for AI analysis
-      let historyForAnalysis = analysisHistory;
+      let historyForAnalysis = listeningHistory;
 
-      // If we have a lot of history, sample it intelligently
-      if (analysisHistory.length > 100) {
-        const recentTracks = analysisHistory.slice(0, 50);
-        const remainingTracks = analysisHistory.slice(50);
+      if (listeningHistory.length > 100) {
+        const recentTracks = listeningHistory.slice(0, 50);
+        const remainingTracks = listeningHistory.slice(50);
         const randomSample = remainingTracks
           .sort(() => Math.random() - 0.5)
           .slice(0, 50);
@@ -157,6 +140,9 @@ const PlaylistGenerator: React.FC = () => {
       }
 
       setArtistAnalysis(analysis);
+
+      // Mark analyzing step as completed
+      markStepCompleted("analyzing");
 
       // Automatically proceed to check availability
       await checkArtistAvailability(analysis);
@@ -195,6 +181,9 @@ const PlaylistGenerator: React.FC = () => {
 
       setArtistAvailability(availability.artistAvailability);
       setAlbumAvailability(availability.albumAvailability);
+
+      // Mark filtering step as completed
+      markStepCompleted("filtering");
     } catch (error) {
       console.error("Availability check error:", error);
       setError("Failed to check artist availability. Please try again.");
@@ -232,6 +221,10 @@ const PlaylistGenerator: React.FC = () => {
       }
 
       setRecommendations(Array.isArray(playlist) ? playlist : []);
+
+      // Mark generating step as completed
+      markStepCompleted("generating");
+
       setCurrentFlow("review");
     } catch (error) {
       console.error("Playlist generation error:", error);
@@ -292,12 +285,19 @@ const PlaylistGenerator: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 py-8">
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto p-6">
         <div className="bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-6">
           <h1 className="text-3xl font-bold text-gray-100 mb-6 flex items-center gap-2">
             <Music className="text-blue-400" />
             AI Playlist Generator
           </h1>
+
+          <ProgressBar
+            currentStep={currentFlow}
+            completedSteps={completedSteps}
+            onStepClick={handleStepNavigation}
+            isProcessing={isProcessing || loading}
+          />
 
           {/* Error Display */}
           {error && (
@@ -355,6 +355,7 @@ const PlaylistGenerator: React.FC = () => {
 
               <button
                 onClick={() => {
+                  markStepCompleted("model");
                   setCurrentFlow("data");
                   loadPlexData();
                 }}
@@ -383,56 +384,25 @@ const PlaylistGenerator: React.FC = () => {
                 </p>
               </div>
 
-              {!loading && (
+              {loading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
+                  <p className="text-gray-300">Loading your music data...</p>
+                </div>
+              ) : (
                 <>
-                  {/* Time Frame Selection */}
-                  <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                    <h3 className="font-semibold text-gray-200 mb-3">
-                      Select Time Frame for Analysis
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                      {timeFrameOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => setSelectedTimeFrame(option.value)}
-                          className={`p-2 rounded-lg text-sm transition-colors ${
-                            selectedTimeFrame === option.value
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-600 text-gray-200 hover:bg-gray-500"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-blue-900/30 border border-blue-700 p-4 rounded-lg">
                       <h3 className="font-semibold text-blue-200">
-                        Listening History
-                        <span className="text-xs text-blue-400 ml-2">
-                          (
-                          {
-                            timeFrameOptions.find(
-                              (opt) => opt.value === selectedTimeFrame
-                            )?.label
-                          }
-                          )
-                        </span>
+                        Total Listening History
                       </h3>
                       <p className="text-2xl font-bold text-blue-300">
-                        {filteredHistory.length.toLocaleString()}
+                        {listeningHistory.length.toLocaleString()}
                       </p>
                       <p className="text-sm text-blue-400">
-                        {filteredHistory.length === 1 ? "track" : "tracks"} in
-                        selected period
+                        {listeningHistory.length === 1 ? "track" : "tracks"}{" "}
+                        available
                       </p>
-                      {selectedTimeFrame !== "all" && (
-                        <p className="text-xs text-blue-500 mt-1">
-                          {listeningHistory.length} total tracks available
-                        </p>
-                      )}
                     </div>
 
                     <div className="bg-green-900/30 border border-green-700 p-4 rounded-lg">
@@ -446,43 +416,12 @@ const PlaylistGenerator: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Analysis Quality based on filtered history */}
-                  <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                    <h3 className="font-semibold text-gray-200 mb-2">
-                      Analysis Quality
-                    </h3>
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1">
-                        <div className="bg-gray-600 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all duration-300 ${
-                              filteredHistory.length > 50
-                                ? "bg-green-500"
-                                : filteredHistory.length > 20
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
-                            }`}
-                            style={{
-                              width: `${Math.min(
-                                (filteredHistory.length / 50) * 100,
-                                100
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {filteredHistory.length > 50
-                            ? "Excellent"
-                            : filteredHistory.length > 20
-                            ? "Good"
-                            : filteredHistory.length > 10
-                            ? "Fair"
-                            : "Limited"}{" "}
-                          analysis data for selected timeframe
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  {/* History Display - Open by Default */}
+                  <HistoryDisplay
+                    history={listeningHistory}
+                    plexServerUrl={plexConfig.serverUrl}
+                    plexToken={plexConfig.token}
+                  />
 
                   <div className="flex gap-4">
                     <button
@@ -492,13 +431,11 @@ const PlaylistGenerator: React.FC = () => {
                       Back to Model Selection
                     </button>
                     <button
-                      onClick={() =>
-                        analyzeArtistsAndRecommend(filteredHistory)
-                      }
-                      disabled={filteredHistory.length === 0}
+                      onClick={analyzeArtistsAndRecommend}
+                      disabled={listeningHistory.length === 0}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 text-white py-2 px-4 rounded-lg transition-colors"
                     >
-                      Analyze My Music Taste ({filteredHistory.length} tracks)
+                      Analyze My Music Taste ({listeningHistory.length} tracks)
                     </button>
                   </div>
                 </>
