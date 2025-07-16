@@ -3,14 +3,22 @@ export interface PlexTrack {
   ratingKey: string;
   key: string;
   title: string;
-  grandparentTitle: string;
   parentTitle: string;
+  grandparentTitle: string;
   type: string;
   thumb?: string;
-  duration: number;
-  addedAt: number;
-  updatedAt: number;
-  Media?: any[];
+  parentThumb?: string;
+  grandparentThumb?: string;
+  index: number;
+  parentIndex: number;
+  viewedAt: number; // This is the timestamp we need
+  accountID: number;
+  deviceID: number;
+  historyKey?: string;
+  librarySectionID?: string;
+  parentKey?: string;
+  grandparentKey?: string;
+  grandparentArt?: string;
 }
 
 export interface LastFmTrack {
