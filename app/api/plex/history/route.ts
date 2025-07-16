@@ -1,36 +1,37 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { PlexTrack } from "@/types";
 
-export async function GET(request: NextRequest) {
-  const { PLEX_TOKEN, PLEX_SERVER_URL, PLEX_ACCOUNT_ID } = process.env;
-
-  if (!PLEX_TOKEN || !PLEX_SERVER_URL) {
-    return NextResponse.json(
-      { error: "Missing Plex configuration" },
-      { status: 500 }
-    );
-  }
+export async function POST(request: NextRequest) {
+  const { PLEX_SERVER_URL } = process.env;
 
   try {
+    const { userToken, userId } = await request.json();
+
+    if (!userToken || !userId) {
+      return NextResponse.json(
+        { error: "Missing user authentication" },
+        { status: 401 }
+      );
+    }
+
     const response = await axios.get(
-      `${PLEX_SERVER_URL}/status/sessions/history/${PLEX_ACCOUNT_ID}?X-Plex-Token=${PLEX_TOKEN}`,
+      `${PLEX_SERVER_URL}/status/sessions/history/${userId}?X-Plex-Token=${userToken}`,
       {
         headers: { Accept: "application/json" },
       }
     );
 
-    // Filter for audio/music items only
-    const musicHistory: PlexTrack[] =
+    const userMusicHistory =
       response.data.MediaContainer.Metadata?.filter(
-        (item: PlexTrack) => item.type === "track"
+        (item: any) => item.type === "track"
       ) || [];
 
-    return NextResponse.json(musicHistory);
+    return NextResponse.json(userMusicHistory);
   } catch (error) {
-    console.error("Plex history error:", error);
+    console.error("User history error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch Plex history" },
+      { error: "Failed to fetch user history" },
       { status: 500 }
     );
   }
