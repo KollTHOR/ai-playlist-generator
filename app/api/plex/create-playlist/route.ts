@@ -3,26 +3,59 @@ import axios from "axios";
 import { PlaylistRequest } from "@/types";
 
 export async function POST(request: NextRequest) {
-  const { PLEX_TOKEN, PLEX_SERVER_URL } = process.env;
+  const { PLEX_SERVER_URL } = process.env;
 
-  if (!PLEX_TOKEN || !PLEX_SERVER_URL) {
+  if (!PLEX_SERVER_URL) {
     return NextResponse.json(
-      { error: "Missing Plex configuration" },
+      { error: "Missing Plex server configuration" },
       { status: 500 }
     );
   }
 
   try {
-    const body: PlaylistRequest = await request.json();
-    const { title, trackIds } = body;
+    const body: PlaylistRequest & { userToken: string } = await request.json();
+    const { title, trackIds, userToken } = body;
 
-    // Create playlist
+    if (!userToken) {
+      return NextResponse.json(
+        { error: "Missing user token" },
+        { status: 401 }
+      );
+    }
+
+    // Step 1: Get the server machine identifier (required for track URIs)
+    const identityResponse = await axios.get(`${PLEX_SERVER_URL}/identity`, {
+      headers: {
+        Accept: "application/json",
+        "X-Plex-Token": userToken,
+      },
+      timeout: 10000,
+    });
+
+    const machineIdentifier =
+      identityResponse.data?.myPlexConnection?.machineIdentifier;
+    if (!machineIdentifier) {
+      return NextResponse.json(
+        { error: "Failed to get Plex server machine identifier" },
+        { status: 500 }
+      );
+    }
+
+    // Step 2: Create the playlist
     const createResponse = await axios.post(
-      `${PLEX_SERVER_URL}/playlists?type=audio&title=${encodeURIComponent(
-        title
-      )}&X-Plex-Token=${PLEX_TOKEN}`,
-      {},
-      { headers: { Accept: "application/json" } }
+      `${PLEX_SERVER_URL}/playlists`,
+      null,
+      {
+        params: {
+          type: "audio",
+          title,
+        },
+        headers: {
+          Accept: "application/json",
+          "X-Plex-Token": userToken,
+        },
+        timeout: 10000,
+      }
     );
 
     const playlistMetadata = createResponse.data?.MediaContainer?.Metadata;
@@ -35,16 +68,22 @@ export async function POST(request: NextRequest) {
 
     const playlistId = playlistMetadata[0].ratingKey;
 
-    // Add tracks to playlist
+    // Step 3: Build URIs for tracks correctly
     const trackUris = trackIds
-      .map((id) => `server://${PLEX_SERVER_URL}/library/metadata/${id}`)
+      .map((id) => `library://${machineIdentifier}/item/${id}`)
       .join(",");
 
-    await axios.put(
-      `${PLEX_SERVER_URL}/playlists/${playlistId}/items?uri=${encodeURIComponent(
-        trackUris
-      )}&X-Plex-Token=${PLEX_TOKEN}`
-    );
+    // Step 4: Add tracks to the created playlist
+    await axios.put(`${PLEX_SERVER_URL}/playlists/${playlistId}/items`, null, {
+      params: {
+        uri: trackUris,
+      },
+      headers: {
+        "X-Plex-Token": userToken,
+        Accept: "application/json",
+      },
+      timeout: 10000,
+    });
 
     return NextResponse.json({ success: true, playlistId });
   } catch (error) {

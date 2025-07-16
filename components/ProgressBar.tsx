@@ -8,7 +8,6 @@ import {
   Search,
   Sparkles,
   PlayCircle,
-  ChevronRight,
 } from "lucide-react";
 
 interface ProgressStep {
@@ -35,44 +34,44 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   const steps: ProgressStep[] = [
     {
       id: "model",
-      title: "Select AI Model",
-      description: "Choose your AI model",
-      icon: <Sparkles className="w-4 h-4" />,
+      title: "AI Model",
+      description: "Choose model",
+      icon: <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />,
       clickable: true,
     },
     {
       id: "data",
-      title: "Load Music Data",
-      description: "Fetch library & history",
-      icon: <Music className="w-4 h-4" />,
+      title: "Data",
+      description: "Load music",
+      icon: <Music className="w-3 h-3 sm:w-4 sm:h-4" />,
       clickable: completedSteps.includes("model"),
     },
     {
       id: "analyzing",
-      title: "AI Analysis",
-      description: "Analyze music taste",
-      icon: <Brain className="w-4 h-4" />,
+      title: "Analysis",
+      description: "Analyze taste",
+      icon: <Brain className="w-3 h-3 sm:w-4 sm:h-4" />,
       clickable: completedSteps.includes("data"),
     },
     {
       id: "filtering",
-      title: "Find Artists",
-      description: "Check availability",
-      icon: <Search className="w-4 h-4" />,
+      title: "Artists",
+      description: "Find available",
+      icon: <Search className="w-3 h-3 sm:w-4 sm:h-4" />,
       clickable: completedSteps.includes("analyzing"),
     },
     {
       id: "generating",
-      title: "Generate Playlist",
-      description: "Create recommendations",
-      icon: <PlayCircle className="w-4 h-4" />,
+      title: "Generate",
+      description: "Create playlist",
+      icon: <PlayCircle className="w-3 h-3 sm:w-4 sm:h-4" />,
       clickable: completedSteps.includes("filtering"),
     },
     {
       id: "review",
-      title: "Review & Create",
-      description: "Finalize playlist",
-      icon: <Check className="w-4 h-4" />,
+      title: "Review",
+      description: "Finalize",
+      icon: <Check className="w-3 h-3 sm:w-4 sm:h-4" />,
       clickable: completedSteps.includes("generating"),
     },
   ];
@@ -88,10 +87,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     const isClickable = step.clickable && !isProcessing;
 
     const baseClasses = `
-    flex items-center gap-2 p-2 rounded-lg transition-all duration-200
-    ${isClickable ? "cursor-pointer" : "cursor-not-allowed"}
-    overflow-hidden
-  `;
+      relative flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg transition-all duration-200 mb-1 sm:mb-2
+      ${isClickable ? "cursor-pointer" : "cursor-not-allowed"}
+    `;
 
     switch (status) {
       case "completed":
@@ -112,171 +110,70 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
     switch (status) {
       case "completed":
-        return "w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center";
+        return "w-6 h-6 sm:w-8 sm:h-8 bg-green-600 text-white rounded-full flex items-center justify-center flex-shrink-0";
       case "current":
-        return `w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center ${
+        return `w-6 h-6 sm:w-8 sm:h-8 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 ${
           isProcessing ? "animate-pulse" : ""
         }`;
       default:
-        return "w-8 h-8 bg-gray-600 text-gray-400 rounded-full flex items-center justify-center";
+        return "w-6 h-6 sm:w-8 sm:h-8 bg-gray-600 text-gray-400 rounded-full flex items-center justify-center flex-shrink-0";
     }
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-4 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-200">
-          Playlist Creation Progress
+    <div className="bg-gray-800 rounded-lg border border-gray-700 p-2 sm:p-4">
+      <div className="flex items-center justify-between mb-2 sm:mb-4">
+        <h3 className="text-sm sm:text-lg font-semibold text-gray-200">
+          Progress
         </h3>
-        <div className="text-sm text-gray-400">
-          Step {steps.findIndex((s) => s.id === currentStep) + 1} of{" "}
-          {steps.length}
+        <div className="text-xs sm:text-sm text-gray-400">
+          {steps.findIndex((s) => s.id === currentStep) + 1}/{steps.length}
         </div>
       </div>
 
-      {/* Desktop Progress Bar - Fixed Layout */}
-      <div className="hidden lg:block">
-        <div className="grid grid-cols-6 gap-2">
-          {steps.map((step, index) => (
+      {/* Compact Vertical Progress Steps */}
+      <div className="space-y-1 sm:space-y-2">
+        {steps.map((step, index) => (
+          <div key={step.id} className="relative">
             <div
-              key={step.id}
-              className={`${getStepClasses(step)} min-w-0`}
+              className={getStepClasses(step)}
               onClick={() =>
                 step.clickable && !isProcessing && onStepClick(step.id)
               }
             >
               <div className={getIconClasses(step)}>
                 {completedSteps.includes(step.id) ? (
-                  <Check className="w-4 h-4" />
+                  <Check className="w-3 h-3 sm:w-4 sm:h-4" />
                 ) : (
                   step.icon
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{step.title}</p>
-                <p className="text-xs opacity-75 truncate">
+                <p className="font-medium text-xs sm:text-sm truncate">
+                  {step.title}
+                </p>
+                <p className="text-xs opacity-75 truncate hidden sm:block">
                   {step.description}
                 </p>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Compact Connecting Line */}
+            {index < steps.length - 1 && (
+              <div className="flex justify-center">
+                <div className="w-0.5 h-2 sm:h-3 bg-gray-600 my-0.5 sm:my-1"></div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
-      {/* Tablet Progress Bar - Compact Version */}
-      <div className="hidden md:block lg:hidden">
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {steps.slice(0, 3).map((step) => (
-            <div
-              key={step.id}
-              className={`${getStepClasses(step)} min-w-0`}
-              onClick={() =>
-                step.clickable && !isProcessing && onStepClick(step.id)
-              }
-            >
-              <div className={getIconClasses(step)}>
-                {completedSteps.includes(step.id) ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  step.icon
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{step.title}</p>
-                <p className="text-xs opacity-75 truncate">
-                  {step.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {steps.slice(3).map((step) => (
-            <div
-              key={step.id}
-              className={`${getStepClasses(step)} min-w-0`}
-              onClick={() =>
-                step.clickable && !isProcessing && onStepClick(step.id)
-              }
-            >
-              <div className={getIconClasses(step)}>
-                {completedSteps.includes(step.id) ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  step.icon
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{step.title}</p>
-                <p className="text-xs opacity-75 truncate">
-                  {step.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Mobile Progress Bar */}
-      <div className="md:hidden">
-        {/* Current Step Display */}
-        <div className="mb-4">
-          {steps.map(
-            (step) =>
-              step.id === currentStep && (
-                <div
-                  key={step.id}
-                  className={`${getStepClasses(step)} min-w-0`}
-                >
-                  <div className={getIconClasses(step)}>
-                    {completedSteps.includes(step.id) ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      step.icon
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{step.title}</p>
-                    <p className="text-sm opacity-75 truncate">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              )
-          )}
-        </div>
-
-        {/* Progress Dots */}
-        <div className="flex justify-center gap-2">
-          {steps.map((step) => (
-            <button
-              key={step.id}
-              onClick={() =>
-                step.clickable && !isProcessing && onStepClick(step.id)
-              }
-              disabled={!step.clickable || isProcessing}
-              className={`w-3 h-3 rounded-full transition-colors ${
-                completedSteps.includes(step.id)
-                  ? "bg-green-500"
-                  : step.id === currentStep
-                  ? "bg-blue-500"
-                  : "bg-gray-600"
-              } ${
-                step.clickable && !isProcessing
-                  ? "cursor-pointer"
-                  : "cursor-not-allowed"
-              }`}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Processing Indicator */}
+      {/* Compact Processing Indicator */}
       {isProcessing && (
-        <div className="mt-4 text-center">
-          <div className="inline-flex items-center gap-2 text-blue-400">
-            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm">Processing...</span>
+        <div className="mt-2 sm:mt-4 text-center">
+          <div className="inline-flex items-center gap-1 sm:gap-2 text-blue-400">
+            <div className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs">Processing...</span>
           </div>
         </div>
       )}

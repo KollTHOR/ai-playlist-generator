@@ -3,7 +3,6 @@ import axios from "axios";
 
 export async function GET(request: NextRequest) {
   try {
-    // Step 1: Request a PIN from Plex
     const pinResponse = await axios.post(
       "https://plex.tv/api/v2/pins",
       {
@@ -26,10 +25,13 @@ export async function GET(request: NextRequest) {
 
     const { id, code } = pinResponse.data;
 
-    // Step 2: Create the proper OAuth URL
-    const authUrl = `https://app.plex.tv/auth#!?clientID=ai-playlist-generator&code=${code}&context[device][product]=AI%20Playlist%20Generator&context[device][version]=1.0&context[device][platform]=Web&context[device][platformVersion]=1.0&context[device][device]=Web%20Browser&context[device][deviceName]=AI%20Playlist%20Generator&context[device][model]=Web&forwardUrl=${encodeURIComponent(
-      "http://localhost:3000/api/plex/callback"
-    )}`;
+    // Create proper Plex auth URL
+    const forwardUrl = encodeURIComponent(
+      `${
+        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+      }/auth/success`
+    );
+    const authUrl = `https://app.plex.tv/auth#?clientID=ai-playlist-generator&code=${code}&context%5Bdevice%5D%5Bproduct%5D=AI%20Playlist%20Generator&context%5Bdevice%5D%5Bversion%5D=1.0&context%5Bdevice%5D%5Bplatform%5D=Web&context%5Bdevice%5D%5BplatformVersion%5D=1.0&context%5Bdevice%5D%5Bdevice%5D=Web%20Browser&context%5Bdevice%5D%5BdeviceName%5D=AI%20Playlist%20Generator&forwardUrl=${forwardUrl}`;
 
     return NextResponse.json({
       authUrl,

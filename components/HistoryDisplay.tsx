@@ -14,14 +14,14 @@ import { PlexTrack } from "@/types";
 
 interface HistoryDisplayProps {
   history: PlexTrack[];
-  plexServerUrl: string;
-  plexToken: string;
+  userToken: string;
+  onFilteredCountChange?: (count: number) => void; // Add this prop
 }
 
 const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
   history,
-  plexServerUrl,
-  plexToken,
+  userToken,
+  onFilteredCountChange,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
@@ -39,6 +39,16 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
     { value: "quarter", label: "Last 3 Months" },
     { value: "year", label: "Last Year" },
   ];
+
+  useEffect(() => {
+    const filtered = filterHistoryByTimeFrame(history, selectedTimeFrame);
+    setFilteredHistory(filtered);
+
+    // Call the callback with the filtered count
+    if (onFilteredCountChange) {
+      onFilteredCountChange(filtered.length);
+    }
+  }, [history, selectedTimeFrame, onFilteredCountChange]);
 
   // Filter history by time frame
   const filterHistoryByTimeFrame = (
@@ -132,14 +142,16 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
     });
   };
 
-  // Get album artwork URL
+  // Get album artwork URL with user token
   const getAlbumArtUrl = (track: PlexTrack): string => {
     if (track.parentThumb) {
-      return `/api/plex/image?path=${encodeURIComponent(track.parentThumb)}`;
+      return `/api/plex/image?path=${encodeURIComponent(
+        track.parentThumb
+      )}&token=${encodeURIComponent(userToken)}`;
     } else if (track.grandparentThumb) {
       return `/api/plex/image?path=${encodeURIComponent(
         track.grandparentThumb
-      )}`;
+      )}&token=${encodeURIComponent(userToken)}`;
     }
     return "/api/plex/image?path=placeholder";
   };
@@ -195,9 +207,9 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
   };
 
   return (
-    <div className="bg-gray-700 rounded-lg border border-gray-600 mb-4">
+    <div className="bg-gray-700 rounded-lg border border-gray-600 flex flex-col h-full max-h-[500px]">
       {/* Header */}
-      <div className="p-4 border-b border-gray-600">
+      <div className="p-4 border-b border-gray-600 flex-shrink-0">
         <h3 className="font-semibold text-gray-200 mb-4">Listening History</h3>
 
         {/* Time Frame Filter */}
@@ -241,7 +253,7 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
       </div>
 
       {/* History List */}
-      <div className="max-h-96 overflow-y-auto">
+      <div className="flex-grow overflow-y-auto">
         {currentItems.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
             <Music className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -325,7 +337,7 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="p-4 border-t border-gray-600">
+        <div className="p-4 border-t border-gray-600 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-400">
               Showing {startIndex + 1}-

@@ -3,23 +3,45 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 
 export async function POST(request: NextRequest) {
-  const { PLEX_TOKEN, PLEX_SERVER_URL } = process.env;
+  const { PLEX_SERVER_URL } = process.env;
 
-  if (!PLEX_TOKEN || !PLEX_SERVER_URL) {
+  if (!PLEX_SERVER_URL) {
     return NextResponse.json(
-      { error: "Missing Plex configuration" },
+      { error: "Missing Plex server configuration" },
       { status: 500 }
     );
   }
 
   try {
     const body = await request.json();
-    const { recommendedArtists, recommendedAlbums } = body;
+    const { recommendedArtists, recommendedAlbums, userToken } = body;
 
-    // Get music libraries
+    // Validate required data
+    if (!userToken) {
+      return NextResponse.json(
+        { error: "Missing user authentication token" },
+        { status: 401 }
+      );
+    }
+
+    if (!recommendedArtists || !recommendedAlbums) {
+      return NextResponse.json(
+        { error: "Missing recommended artists or albums data" },
+        { status: 400 }
+      );
+    }
+
+    console.log("Searching for artists with user token...");
+    console.log("Recommended artists:", recommendedArtists.length);
+    console.log("Recommended albums:", recommendedAlbums.length);
+
+    // Get music libraries using user token
     const librariesResponse = await axios.get(
-      `${PLEX_SERVER_URL}/library/sections?X-Plex-Token=${PLEX_TOKEN}`,
-      { headers: { Accept: "application/json" } }
+      `${PLEX_SERVER_URL}/library/sections?X-Plex-Token=${userToken}`,
+      {
+        headers: { Accept: "application/json" },
+        timeout: 10000,
+      }
     );
 
     const musicLibraries =
@@ -27,10 +49,20 @@ export async function POST(request: NextRequest) {
         (lib: any) => lib.type === "artist"
       ) || [];
 
+    console.log("Found music libraries:", musicLibraries.length);
+
+    if (musicLibraries.length === 0) {
+      return NextResponse.json(
+        { error: "No music libraries found in Plex server" },
+        { status: 404 }
+      );
+    }
+
     const artistAvailability = [];
     const albumAvailability = [];
 
     // Check artist availability
+    console.log("Checking artist availability...");
     for (const recommendedArtist of recommendedArtists) {
       let found = false;
       let artistData = null;
@@ -42,17 +74,24 @@ export async function POST(request: NextRequest) {
               library.key
             }/search?type=8&query=${encodeURIComponent(
               recommendedArtist.name
-            )}&X-Plex-Token=${PLEX_TOKEN}`,
-            { headers: { Accept: "application/json" } }
+            )}&X-Plex-Token=${userToken}`,
+            {
+              headers: { Accept: "application/json" },
+              timeout: 5000,
+            }
           );
 
           if (searchResponse.data.MediaContainer.Metadata?.length > 0) {
             found = true;
             artistData = searchResponse.data.MediaContainer.Metadata[0];
+            console.log(`Found artist: ${recommendedArtist.name}`);
             break;
           }
-        } catch (searchError) {
-          console.log(`Search failed for artist: ${recommendedArtist.name}`);
+        } catch (searchError: any) {
+          console.log(
+            `Search failed for artist: ${recommendedArtist.name}`,
+            searchError.message
+          );
         }
       }
 
@@ -64,6 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check album availability
+    console.log("Checking album availability...");
     for (const recommendedAlbum of recommendedAlbums) {
       let found = false;
       let albumData = null;
@@ -75,8 +115,11 @@ export async function POST(request: NextRequest) {
               library.key
             }/search?type=9&query=${encodeURIComponent(
               recommendedAlbum.album
-            )}&X-Plex-Token=${PLEX_TOKEN}`,
-            { headers: { Accept: "application/json" } }
+            )}&X-Plex-Token=${userToken}`,
+            {
+              headers: { Accept: "application/json" },
+              timeout: 5000,
+            }
           );
 
           if (searchResponse.data.MediaContainer.Metadata?.length > 0) {
@@ -91,11 +134,17 @@ export async function POST(request: NextRequest) {
             if (matchingAlbum) {
               found = true;
               albumData = matchingAlbum;
+              console.log(
+                `Found album: ${recommendedAlbum.album} by ${recommendedAlbum.artist}`
+              );
               break;
             }
           }
-        } catch (searchError) {
-          console.log(`Search failed for album: ${recommendedAlbum.album}`);
+        } catch (searchError: any) {
+          console.log(
+            `Search failed for album: ${recommendedAlbum.album}`,
+            searchError.message
+          );
         }
       }
 
@@ -120,10 +169,28 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(summary);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Artist search error:", error);
+
+    if (error.response?.status === 401) {
+      return NextResponse.json(
+        { error: "Invalid user authentication token" },
+        { status: 401 }
+      );
+    }
+
+    if (error.response?.status === 404) {
+      return NextResponse.json(
+        { error: "Plex server or library not found" },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Failed to search for artists" },
+      {
+        error: "Failed to search for artists",
+        details: error.message,
+      },
       { status: 500 }
     );
   }

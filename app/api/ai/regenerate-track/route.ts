@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       musicProfile,
       artistAvailability,
       albumAvailability,
-      playlistLength = 20,
+      excludeTrack,
       model = "deepseek/deepseek-r1",
     } = await request.json();
 
@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const systemPrompt = `You are a JSON-only playlist API. You must return a valid JSON array without any formatting, explanations, or markdown. Your response must be parseable JSON that starts with [ and ends with ].`;
+    const systemPrompt = `You are a JSON-only music recommendation API. You must return a valid JSON object without any formatting, explanations, or markdown. Your response must be parseable JSON that starts with { and ends with }.`;
 
-    const userPrompt = `Create a ${playlistLength}-song playlist based on this profile and available artists.
+    const userPrompt = `Generate a single song recommendation based on this profile and available artists.
 
 MUSIC PROFILE:
 Genres: ${musicProfile.primaryGenres?.join(", ") || "Various"}
@@ -62,24 +62,26 @@ ${availableAlbums
   )
   .join("\n")}
 
-IMPORTANT: Return only valid JSON array. No markdown, no explanations, no code blocks. Start with [ and end with ]. Use this exact structure:
+${
+  excludeTrack
+    ? `EXCLUDE THIS TRACK: ${excludeTrack.artist} - ${excludeTrack.title}`
+    : ""
+}
 
-[
-  {
-    "artist": "Artist Name",
-    "title": "Song Title",
-    "album": "Album Name",
-    "reason": "Brief explanation"
-  }
-]
+IMPORTANT: Return only valid JSON object. No markdown, no explanations, no code blocks. Start with { and end with }. Use this exact structure:
 
-Create exactly ${playlistLength} songs using only the available artists and albums listed above. Focus on variety and flow. Return only the JSON array.`;
+{
+  "artist": "Artist Name",
+  "title": "Song Title",
+  "album": "Album Name",
+  "reason": "Brief explanation"
+}
 
-    console.log(
-      "Generating playlist with",
-      availableArtists.length,
-      "available artists"
-    );
+Generate exactly 1 song using only the available artists and albums listed above. ${
+      excludeTrack ? "Make sure it is different from the excluded track." : ""
+    } Return only the JSON object.`;
+
+    console.log("Generating single track replacement");
 
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -89,8 +91,8 @@ Create exactly ${playlistLength} songs using only the available artists and albu
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.3,
-        max_tokens: 2500,
+        temperature: 0.4,
+        max_tokens: 500,
         top_p: 0.9,
       },
       {
@@ -100,60 +102,38 @@ Create exactly ${playlistLength} songs using only the available artists and albu
           "HTTP-Referer": "http://localhost:3000",
           "X-Title": "AI Playlist Generator",
         },
-        timeout: 60000,
+        timeout: 30000,
       }
     );
 
     const aiResponse = response.data.choices[0].message.content.trim();
-    console.log("AI playlist response length:", aiResponse.length);
-    console.log("AI response starts with:", aiResponse.substring(0, 50));
-    console.log(
-      "AI response ends with:",
-      aiResponse.substring(aiResponse.length - 50)
-    );
+    console.log("AI track response:", aiResponse);
 
     try {
-      const recommendations = JSON.parse(aiResponse);
+      const track = JSON.parse(aiResponse);
 
-      if (!Array.isArray(recommendations)) {
-        throw new Error("Response is not an array");
+      if (!track.artist || !track.title) {
+        throw new Error("Invalid track structure");
       }
 
-      const validRecommendations = recommendations.filter(
-        (rec) => rec && typeof rec === "object" && rec.artist && rec.title
-      );
-
-      if (validRecommendations.length === 0) {
-        throw new Error("No valid recommendations found");
-      }
-
-      console.log(
-        `Successfully generated ${validRecommendations.length} recommendations`
-      );
-      return NextResponse.json(validRecommendations);
+      console.log("Successfully generated replacement track:", track);
+      return NextResponse.json(track);
     } catch (parseError) {
       console.error("JSON parsing failed:", parseError);
-      console.error("Raw AI response:", aiResponse);
 
-      // Fallback playlist from available artists
-      const fallbackRecommendations = availableArtists
-        .slice(0, playlistLength)
-        .map((artist: any, index: number) => ({
-          artist: artist.name,
-          title: `Popular Song ${index + 1}`,
-          album: "Unknown Album",
-          reason: "Fallback recommendation",
-        }));
+      // Fallback track
+      const fallbackTrack = {
+        artist: availableArtists[0].name,
+        title: "Popular Song",
+        album: "Unknown Album",
+        reason: "Fallback recommendation",
+      };
 
-      console.log(
-        "Using fallback recommendations:",
-        fallbackRecommendations.length,
-        "songs"
-      );
-      return NextResponse.json(fallbackRecommendations);
+      console.log("Using fallback track:", fallbackTrack);
+      return NextResponse.json(fallbackTrack);
     }
   } catch (error) {
-    console.error("Playlist generation error:", error);
+    console.error("Track regeneration error:", error);
 
     if (error instanceof AxiosError) {
       if (error.code === "ECONNABORTED") {
@@ -179,7 +159,7 @@ Create exactly ${playlistLength} songs using only the available artists and albu
     }
 
     return NextResponse.json(
-      { error: "Failed to generate playlist" },
+      { error: "Failed to generate replacement track" },
       { status: 500 }
     );
   }

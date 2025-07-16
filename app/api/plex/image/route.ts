@@ -2,17 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 
 export async function GET(request: NextRequest) {
-  const { PLEX_TOKEN, PLEX_SERVER_URL } = process.env;
   const { searchParams } = new URL(request.url);
   const imagePath = searchParams.get("path");
+  const userToken = searchParams.get("token");
 
-  if (!imagePath || !PLEX_TOKEN || !PLEX_SERVER_URL) {
-    return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+  if (!imagePath) {
+    return NextResponse.json({ error: "Missing image path" }, { status: 400 });
+  }
+
+  if (!userToken) {
+    return NextResponse.json({ error: "Missing user token" }, { status: 400 });
+  }
+
+  // Get server URL from environment
+  const { PLEX_SERVER_URL } = process.env;
+  if (!PLEX_SERVER_URL) {
+    return NextResponse.json(
+      { error: "Missing Plex server configuration" },
+      { status: 500 }
+    );
   }
 
   try {
+    console.log("Fetching image:", `${PLEX_SERVER_URL}${imagePath}`);
+
     const response = await axios.get(
-      `${PLEX_SERVER_URL}${imagePath}?X-Plex-Token=${PLEX_TOKEN}`,
+      `${PLEX_SERVER_URL}${imagePath}?X-Plex-Token=${userToken}`,
       {
         responseType: "arraybuffer",
         headers: {
@@ -20,7 +35,6 @@ export async function GET(request: NextRequest) {
           "User-Agent": "Plex/1.0",
         },
         timeout: 10000,
-        validateStatus: (status) => status < 500,
       }
     );
 
