@@ -21,6 +21,7 @@ import ProgressBar from "./ProgressBar";
 import PlexAuth from "./PlexAuth";
 import { requestWithContinuation } from "@/lib/aiContinuation";
 import PlaylistEditor from "./PlaylistEditor";
+import { useToast } from "../lib/ToastContext";
 
 const PlaylistGenerator: React.FC = () => {
   // State management
@@ -36,7 +37,7 @@ const PlaylistGenerator: React.FC = () => {
   const [totalLibraryCount, setTotalLibraryCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showError, showSuccess, showInfo } = useToast();
 
   // Artist-based recommendation states
   const [artistAnalysis, setArtistAnalysis] = useState<any>(null);
@@ -74,6 +75,18 @@ const PlaylistGenerator: React.FC = () => {
       setIsAuthenticated(true);
     }
   }, []);
+
+  const testErrorToast = () => {
+    showError("This is a test error message to verify toast functionality!");
+  };
+
+  const testSuccessToast = () => {
+    showSuccess("This is a test success message - everything is working!");
+  };
+
+  const testInfoToast = () => {
+    showInfo("This is a test info message for general notifications.");
+  };
 
   const handleRegenerateTrack = async (index: number) => {
     if (index < 0 || index >= recommendations.length) {
@@ -115,7 +128,7 @@ const PlaylistGenerator: React.FC = () => {
       console.log("Track replaced successfully");
     } catch (error) {
       console.error("Track regeneration error:", error);
-      setError("Failed to regenerate track. Please try again.");
+      showError("Failed to regenerate track. Please try again.");
     } finally {
       setIsRegenerating(false);
     }
@@ -130,7 +143,7 @@ const PlaylistGenerator: React.FC = () => {
       console.log("Playlist regenerated successfully");
     } catch (error) {
       console.error("Playlist regeneration error:", error);
-      setError("Failed to regenerate playlist. Please try again.");
+      showError("Failed to regenerate playlist. Please try again.");
     } finally {
       setIsRegenerating(false);
     }
@@ -176,7 +189,7 @@ const PlaylistGenerator: React.FC = () => {
       );
     } catch (error) {
       console.error("Invalid tracks regeneration error:", error);
-      setError("Failed to regenerate invalid tracks. Please try again.");
+      showError("Failed to regenerate invalid tracks. Please try again.");
     } finally {
       setIsRegenerating(false);
     }
@@ -215,7 +228,7 @@ const PlaylistGenerator: React.FC = () => {
     if (allowedSteps.includes(stepId)) {
       setCurrentFlow(stepId as any);
       setIsProcessing(false);
-      setError(null);
+      showError("");
 
       // Handle specific step navigation
       if (
@@ -265,7 +278,7 @@ const PlaylistGenerator: React.FC = () => {
       markStepCompleted("data");
     } catch (error) {
       console.error("Error loading Plex data:", error);
-      setError("Failed to load music data. Please check your configuration.");
+      showError("Failed to load music data. Please check your configuration.");
     } finally {
       setLoading(false);
     }
@@ -319,7 +332,7 @@ const PlaylistGenerator: React.FC = () => {
       console.log("Analysis completed, showing results to user");
     } catch (error) {
       console.error("Artist analysis error:", error);
-      setError("Failed to analyze artists. Please try again.");
+      showError("Failed to analyze artists. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -367,7 +380,7 @@ const PlaylistGenerator: React.FC = () => {
       markStepCompleted("filtering");
     } catch (error) {
       console.error("Availability check error:", error);
-      setError("Failed to check artist availability. Please try again.");
+      showError("Failed to check artist availability. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -419,7 +432,7 @@ const PlaylistGenerator: React.FC = () => {
           setCurrentFlow("review");
 
           // Show warning about incomplete playlist
-          setError(
+          showError(
             `Playlist generated with ${result.data.length} songs (requested 20). Some responses were truncated.`
           );
         } else {
@@ -428,7 +441,7 @@ const PlaylistGenerator: React.FC = () => {
       }
     } catch (error) {
       console.error("Playlist generation error:", error);
-      setError("Failed to generate playlist. Please try again.");
+      showError("Failed to generate playlist. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -458,6 +471,7 @@ const PlaylistGenerator: React.FC = () => {
         body: JSON.stringify({
           title: `AI Playlist ${new Date().toLocaleDateString()}`,
           trackIds,
+          userToken,
         }),
       });
 
@@ -470,7 +484,7 @@ const PlaylistGenerator: React.FC = () => {
       }
     } catch (error) {
       console.error("Error creating playlist:", error);
-      setError("Failed to create playlist in Plex. Please try again.");
+      showError("Failed to create playlist in Plex. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -489,10 +503,37 @@ const PlaylistGenerator: React.FC = () => {
         <div className="bg-gray-800 shadow-xl border-b border-gray-700 flex-1 flex flex-col min-h-0">
           {/* Compact Header */}
           <div className="p-3 sm:p-4 border-b border-gray-700 flex-shrink-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-100 flex items-center gap-2">
-              <Music className="text-blue-400 w-5 h-5 sm:w-6 sm:h-6" />
-              AI Playlist Generator
-            </h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-100 flex items-center gap-2">
+                <Music className="text-blue-400 w-5 h-5 sm:w-6 sm:h-6" />
+                AI Playlist Generator
+              </h1>
+
+              {/* Test Toast Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={testErrorToast}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                  title="Test Error Toast"
+                >
+                  Error
+                </button>
+                <button
+                  onClick={testSuccessToast}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                  title="Test Success Toast"
+                >
+                  Success
+                </button>
+                <button
+                  onClick={testInfoToast}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
+                  title="Test Info Toast"
+                >
+                  Info
+                </button>
+              </div>
+            </div>
           </div>
 
           {!isAuthenticated ? (
@@ -548,19 +589,6 @@ const PlaylistGenerator: React.FC = () => {
               {/* Right Content Area (Responsive width) */}
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Compact Error Display - Fixed at top */}
-                {error && (
-                  <div className="flex-shrink-0 p-3 sm:p-4 pb-0">
-                    <div className="bg-red-900/50 border border-red-700 rounded-lg p-3">
-                      <p className="text-sm text-red-200">{error}</p>
-                      <button
-                        onClick={() => setError(null)}
-                        className="mt-2 text-xs text-red-400 hover:text-red-200"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Main Content - Scrollable */}
                 <div className="flex-1 p-3 sm:p-4 lg:p-6">
@@ -797,14 +825,28 @@ const PlaylistGenerator: React.FC = () => {
                                       <button
                                         type="button"
                                         onClick={() => {
+                                          console.log(
+                                            "Before removal:",
+                                            artistAnalysis.recommendedArtists
+                                          );
                                           const updatedArtists =
                                             artistAnalysis.recommendedArtists.filter(
                                               (a: any) => a.name !== artist.name
                                             );
-                                          setArtistAnalysis((prev: any) => ({
-                                            ...prev,
-                                            recommendedArtists: updatedArtists,
-                                          }));
+                                          console.log(
+                                            "After removal:",
+                                            updatedArtists
+                                          );
+
+                                          setArtistAnalysis((prev: any) => {
+                                            const newState = {
+                                              ...prev,
+                                              recommendedArtists:
+                                                updatedArtists,
+                                            };
+                                            console.log("New state:", newState);
+                                            return newState;
+                                          });
                                         }}
                                         className="ml-2 hover:text-red-400 transition-colors"
                                         aria-label={`Remove ${artist.name}`}

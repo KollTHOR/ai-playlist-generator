@@ -33,8 +33,10 @@ export async function POST(request: NextRequest) {
     });
 
     const machineIdentifier =
-      identityResponse.data?.myPlexConnection?.machineIdentifier;
+      identityResponse.data?.MediaContainer?.machineIdentifier;
+
     if (!machineIdentifier) {
+      console.error("Identity response:", identityResponse.data);
       return NextResponse.json(
         { error: "Failed to get Plex server machine identifier" },
         { status: 500 }

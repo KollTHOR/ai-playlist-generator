@@ -62,7 +62,7 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
 
     switch (timeFrame) {
       case "day":
-        cutoffDate.setDate(now.getDate() - 1);
+        cutoffDate.setTime(now.getTime() - 24 * 60 * 60 * 1000);
         break;
       case "week":
         cutoffDate.setDate(now.getDate() - 7);
