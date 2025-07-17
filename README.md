@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+AI Playlist Generator is an intelligent application that analyzes your Plex listening history (and optional Last.fm data) to generate personalized playlists using AI models via OpenRouter. It connects to your Plex Media Server, fetches listening history, runs AI-driven analysis, and creates playlists you can review and add back to Plex.
 
-## Getting Started
+## Installing
 
-First, run the development server:
+Clone the repository and install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/yourusername/ai-playlist-generator.git
+cd ai-playlist-generator
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Configuration
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create a `.env.local` file in the root directory with the following variables:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+PLEX_SERVER_URL=http://localhost:32400
+LASTFM_API_KEY=your_lastfm_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+PLEX_CLIENT_ID=ai-playlist-generator
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
 
-## Learn More
+## Starting the Application
 
-To learn more about Next.js, take a look at the following resources:
+### Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Application will run at `http://localhost:3000`.
 
-## Deploy on Vercel
+### Production Build
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run build
+npm run serve
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Usage
+
+1. **Authenticate with Plex**
+   Click “Sign in with Plex” and authorize the application.
+2. **Select AI Model**
+   Choose your preferred model provided via OpenRouter.
+3. **Configure Time Frame**
+   Pick the period of listening history to analyze (e.g., last 30 days).
+4. **Generate Playlist**
+   Application will: - Load library and history from Plex (and Last.fm if configured) - Analyze musical preferences (tempo, genre, energy) - Find similar artists and albums - Select tracks and assemble a personalized playlist
+5. **Review \& Create**
+   Examine the suggested tracks, make edits if desired, then add the playlist back to your Plex library.
+
+## Features
+
+- **Plex Integration**: Fetch music library and listening history
+- **Last.fm Support**: Enrich history with scrobbles for deeper insights
+- **OpenRouter AI**: Run AI analysis via OpenRouter endpoints
+- **Real-time Progress**: Live status updates during generation
+- **Playlist Management**: Review, edit, and save playlists in Plex
+- **Music Profile Analysis**: Energy, era, and genre breakdowns
+
+## API Integration
+
+- **Plex Media Server**: Library and history access
+- **Last.fm API**: Optional listening data enrichment
+- **OpenRouter**: AI inference for music analysis
+
+## Error Handling
+
+- Handles authentication errors and token expirations
+- Validates API responses and network failures
+- Provides user-friendly messages for missing data or time-frame issues
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/awesome-feature`)
+3. Commit your changes (`git commit -m "Add awesome feature"`)
+4. Push to your branch (`git push origin feature/awesome-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For questions or issues, open an issue on GitHub or join the discussion in Discussions.
