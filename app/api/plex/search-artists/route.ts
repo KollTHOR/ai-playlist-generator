@@ -1,9 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { getEnvVar, isTauri } from "@/lib/tauriApi";
+
+async function getPlexServerUrl(): Promise<string> {
+  if (isTauri()) {
+    return await getEnvVar("PLEX_SERVER_URL");
+  }
+  return process.env.PLEX_SERVER_URL || "";
+}
 
 export async function POST(request: NextRequest) {
-  const { PLEX_SERVER_URL } = process.env;
+  const PLEX_SERVER_URL = await getPlexServerUrl();
 
   if (!PLEX_SERVER_URL) {
     return NextResponse.json(
@@ -13,29 +21,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { recommendedArtists, recommendedAlbums, userToken } = body;
+    const { userToken, artist, title, album } = await request.json();
 
-    // Validate required data
-    if (!userToken) {
+    if (!userToken || !artist || !title) {
       return NextResponse.json(
-        { error: "Missing user authentication token" },
-        { status: 401 }
-      );
-    }
-
-    if (!recommendedArtists || !recommendedAlbums) {
-      return NextResponse.json(
-        { error: "Missing recommended artists or albums data" },
+        { error: "Missing required parameters" },
         { status: 400 }
       );
     }
 
-    console.log("Searching for artists with user token...");
-    console.log("Recommended artists:", recommendedArtists.length);
-    console.log("Recommended albums:", recommendedAlbums.length);
+    console.log(`Validating track: ${artist} - ${title}`);
 
-    // Get music libraries using user token
+    // Get music libraries
     const librariesResponse = await axios.get(
       `${PLEX_SERVER_URL}/library/sections?X-Plex-Token=${userToken}`,
       {
@@ -49,31 +46,46 @@ export async function POST(request: NextRequest) {
         (lib: any) => lib.type === "artist"
       ) || [];
 
-    console.log("Found music libraries:", musicLibraries.length);
-
     if (musicLibraries.length === 0) {
-      return NextResponse.json(
-        { error: "No music libraries found in Plex server" },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        found: false,
+        error: "No music libraries found",
+      });
     }
 
-    const artistAvailability = [];
-    const albumAvailability = [];
+    // Search for the track in each library
+    for (const library of musicLibraries) {
+      try {
+        // First search by artist
+        const artistResponse = await axios.get(
+          `${PLEX_SERVER_URL}/library/sections/${
+            library.key
+          }/search?type=8&query=${encodeURIComponent(
+            artist
+          )}&X-Plex-Token=${userToken}`,
+          {
+            headers: { Accept: "application/json" },
+            timeout: 5000,
+          }
+        );
 
-    // Check artist availability
-    console.log("Checking artist availability...");
-    for (const recommendedArtist of recommendedArtists) {
-      let found = false;
-      let artistData = null;
+        const artists = artistResponse.data.MediaContainer.Metadata || [];
 
-      for (const library of musicLibraries) {
-        try {
-          const searchResponse = await axios.get(
+        // Find exact or close artist match
+        const matchedArtist = artists.find(
+          (a: any) =>
+            a.title.toLowerCase() === artist.toLowerCase() ||
+            a.title.toLowerCase().includes(artist.toLowerCase()) ||
+            artist.toLowerCase().includes(a.title.toLowerCase())
+        );
+
+        if (matchedArtist) {
+          // Search for tracks by this artist
+          const tracksResponse = await axios.get(
             `${PLEX_SERVER_URL}/library/sections/${
               library.key
-            }/search?type=8&query=${encodeURIComponent(
-              recommendedArtist.name
+            }/search?type=10&query=${encodeURIComponent(
+              title
             )}&X-Plex-Token=${userToken}`,
             {
               headers: { Accept: "application/json" },
@@ -81,115 +93,65 @@ export async function POST(request: NextRequest) {
             }
           );
 
-          if (searchResponse.data.MediaContainer.Metadata?.length > 0) {
-            found = true;
-            artistData = searchResponse.data.MediaContainer.Metadata[0];
-            console.log(`Found artist: ${recommendedArtist.name}`);
-            break;
+          const tracks = tracksResponse.data.MediaContainer.Metadata || [];
+
+          // Find matching track
+          const matchedTrack = tracks.find((track: any) => {
+            const titleMatch =
+              track.title.toLowerCase() === title.toLowerCase() ||
+              track.title.toLowerCase().includes(title.toLowerCase()) ||
+              title.toLowerCase().includes(track.title.toLowerCase());
+
+            const artistMatch =
+              track.grandparentTitle?.toLowerCase() === artist.toLowerCase() ||
+              track.grandparentTitle
+                ?.toLowerCase()
+                .includes(artist.toLowerCase()) ||
+              artist
+                .toLowerCase()
+                .includes(track.grandparentTitle?.toLowerCase());
+
+            return titleMatch && artistMatch;
+          });
+
+          if (matchedTrack) {
+            console.log(
+              `Found track: ${matchedTrack.title} by ${matchedTrack.grandparentTitle}`
+            );
+            return NextResponse.json({
+              found: true,
+              trackData: {
+                title: matchedTrack.title,
+                artist: matchedTrack.grandparentTitle,
+                album: matchedTrack.parentTitle,
+                ratingKey: matchedTrack.ratingKey,
+                thumb: matchedTrack.thumb,
+                parentThumb: matchedTrack.parentThumb,
+                grandparentThumb: matchedTrack.grandparentThumb,
+              },
+            });
           }
-        } catch (searchError: any) {
-          console.log(
-            `Search failed for artist: ${recommendedArtist.name}`,
-            searchError.message
-          );
         }
+      } catch (searchError: any) {
+        console.log(
+          `Search error in library ${library.key}:`,
+          searchError.message
+        );
       }
-
-      artistAvailability.push({
-        ...recommendedArtist,
-        available: found,
-        plexData: artistData,
-      });
     }
 
-    // Check album availability
-    console.log("Checking album availability...");
-    for (const recommendedAlbum of recommendedAlbums) {
-      let found = false;
-      let albumData = null;
-
-      for (const library of musicLibraries) {
-        try {
-          const searchResponse = await axios.get(
-            `${PLEX_SERVER_URL}/library/sections/${
-              library.key
-            }/search?type=9&query=${encodeURIComponent(
-              recommendedAlbum.album
-            )}&X-Plex-Token=${userToken}`,
-            {
-              headers: { Accept: "application/json" },
-              timeout: 5000,
-            }
-          );
-
-          if (searchResponse.data.MediaContainer.Metadata?.length > 0) {
-            // Check if artist also matches
-            const matchingAlbum =
-              searchResponse.data.MediaContainer.Metadata.find((album: any) =>
-                album.parentTitle
-                  ?.toLowerCase()
-                  .includes(recommendedAlbum.artist.toLowerCase())
-              );
-
-            if (matchingAlbum) {
-              found = true;
-              albumData = matchingAlbum;
-              console.log(
-                `Found album: ${recommendedAlbum.album} by ${recommendedAlbum.artist}`
-              );
-              break;
-            }
-          }
-        } catch (searchError: any) {
-          console.log(
-            `Search failed for album: ${recommendedAlbum.album}`,
-            searchError.message
-          );
-        }
-      }
-
-      albumAvailability.push({
-        ...recommendedAlbum,
-        available: found,
-        plexData: albumData,
-      });
-    }
-
-    const summary = {
-      totalArtistsRecommended: recommendedArtists.length,
-      availableArtists: artistAvailability.filter((a) => a.available).length,
-      totalAlbumsRecommended: recommendedAlbums.length,
-      availableAlbums: albumAvailability.filter((a) => a.available).length,
-      artistAvailability,
-      albumAvailability,
-    };
-
-    console.log(
-      `Found ${summary.availableArtists}/${summary.totalArtistsRecommended} artists and ${summary.availableAlbums}/${summary.totalAlbumsRecommended} albums`
-    );
-
-    return NextResponse.json(summary);
-  } catch (error: any) {
-    console.error("Artist search error:", error);
-
-    if (error.response?.status === 401) {
-      return NextResponse.json(
-        { error: "Invalid user authentication token" },
-        { status: 401 }
-      );
-    }
-
-    if (error.response?.status === 404) {
-      return NextResponse.json(
-        { error: "Plex server or library not found" },
-        { status: 404 }
-      );
-    }
-
+    // Track not found
+    console.log(`Track not found: ${artist} - ${title}`);
+    return NextResponse.json({
+      found: false,
+      error: "Track not found in library",
+    });
+  } catch (error) {
+    console.error("Track validation error:", error);
     return NextResponse.json(
       {
-        error: "Failed to search for artists",
-        details: error.message,
+        found: false,
+        error: "Failed to validate track",
       },
       { status: 500 }
     );

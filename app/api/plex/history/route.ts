@@ -1,9 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { getEnvVar, isTauri } from "@/lib/tauriApi";
+
+async function getPlexServerUrl(): Promise<string> {
+  if (isTauri()) {
+    return await getEnvVar("PLEX_SERVER_URL");
+  }
+  return process.env.PLEX_SERVER_URL || "";
+}
 
 export async function POST(request: NextRequest) {
-  const { PLEX_SERVER_URL } = process.env;
+  const PLEX_SERVER_URL = await getPlexServerUrl();
 
   if (!PLEX_SERVER_URL) {
     return NextResponse.json(

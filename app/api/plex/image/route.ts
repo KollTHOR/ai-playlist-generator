@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { getEnvVar, isTauri } from "@/lib/tauriApi";
+
+async function getPlexServerUrl(): Promise<string> {
+  if (isTauri()) {
+    return await getEnvVar("PLEX_SERVER_URL");
+  }
+  return process.env.PLEX_SERVER_URL || "";
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -15,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Get server URL from environment
-  const { PLEX_SERVER_URL } = process.env;
+  const PLEX_SERVER_URL = await getPlexServerUrl();
   if (!PLEX_SERVER_URL) {
     return NextResponse.json(
       { error: "Missing Plex server configuration" },

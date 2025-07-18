@@ -6,7 +6,12 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:debug": "tauri build --debug",
+    "build:desktop": "TAURI=true npm run build && tauri build"
   },
   "dependencies": {
     "@openrouter/ai-sdk-provider": "^1.0.0-beta.1",

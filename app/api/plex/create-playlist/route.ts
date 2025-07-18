@@ -1,96 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { PlaylistRequest } from "@/types";
+import { getEnvVar, isTauri } from "@/lib/tauriApi";
 
-export async function POST(request: NextRequest) {
-  const { PLEX_SERVER_URL } = process.env;
-
-  if (!PLEX_SERVER_URL) {
-    return NextResponse.json(
-      { error: "Missing Plex server configuration" },
-      { status: 500 }
-    );
+async function getAppUrl(): Promise<string> {
+  if (isTauri()) {
+    return (await getEnvVar("NEXT_PUBLIC_APP_URL")) || "http://localhost:3000";
   }
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+}
 
+export async function GET(request: NextRequest) {
   try {
-    const body: PlaylistRequest & { userToken: string } = await request.json();
-    const { title, trackIds, userToken } = body;
-
-    if (!userToken) {
-      return NextResponse.json(
-        { error: "Missing user token" },
-        { status: 401 }
-      );
-    }
-
-    // Step 1: Get the server machine identifier (required for track URIs)
-    const identityResponse = await axios.get(`${PLEX_SERVER_URL}/identity`, {
-      headers: {
-        Accept: "application/json",
-      },
-      timeout: 10000,
-    });
-
-    const machineIdentifier =
-      identityResponse.data?.MediaContainer?.machineIdentifier;
-
-    if (!machineIdentifier) {
-      console.error("Identity response:", identityResponse.data);
-      return NextResponse.json(
-        { error: "Failed to get Plex server machine identifier" },
-        { status: 500 }
-      );
-    }
-
-    // Step 2: Create the playlist
-    const createResponse = await axios.post(
-      `${PLEX_SERVER_URL}/playlists`,
-      null,
+    const pinResponse = await axios.post(
+      "https://plex.tv/api/v2/pins",
       {
-        params: {
-          type: "audio",
-          title,
-        },
+        strong: true,
+      },
+      {
         headers: {
           Accept: "application/json",
-          "X-Plex-Token": userToken,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Plex-Product": "AI Playlist Generator",
+          "X-Plex-Version": "1.0",
+          "X-Plex-Client-Identifier": "ai-playlist-generator",
+          "X-Plex-Platform": "Web",
+          "X-Plex-Platform-Version": "1.0",
+          "X-Plex-Device": "Web Browser",
+          "X-Plex-Device-Name": "AI Playlist Generator",
         },
-        timeout: 10000,
       }
     );
 
-    const playlistMetadata = createResponse.data?.MediaContainer?.Metadata;
-    if (!playlistMetadata || playlistMetadata.length === 0) {
-      return NextResponse.json(
-        { error: "Failed to create playlist: no metadata returned" },
-        { status: 500 }
-      );
-    }
+    const { id, code } = pinResponse.data;
 
-    const playlistId = playlistMetadata[0].ratingKey;
+    // Create proper Plex auth URL
+    const appUrl = await getAppUrl();
+    const forwardUrl = encodeURIComponent(`${appUrl}/auth/success`);
+    const authUrl = `https://app.plex.tv/auth#?clientID=ai-playlist-generator&code=${code}&context%5Bdevice%5D%5Bproduct%5D=AI%20Playlist%20Generator&context%5Bdevice%5D%5Bversion%5D=1.0&context%5Bdevice%5D%5Bplatform%5D=Web&context%5Bdevice%5D%5BplatformVersion%5D=1.0&context%5Bdevice%5D%5Bdevice%5D=Web%20Browser&context%5Bdevice%5D%5BdeviceName%5D=AI%20Playlist%20Generator&forwardUrl=${forwardUrl}`;
 
-    // Step 3: Build URIs for tracks correctly
-    const trackUris = trackIds
-      .map((id) => `library://${machineIdentifier}/item/${id}`)
-      .join(",");
-
-    // Step 4: Add tracks to the created playlist
-    await axios.put(`${PLEX_SERVER_URL}/playlists/${playlistId}/items`, null, {
-      params: {
-        uri: trackUris,
-      },
-      headers: {
-        "X-Plex-Token": userToken,
-        Accept: "application/json",
-      },
-      timeout: 10000,
+    return NextResponse.json({
+      authUrl,
+      pinId: id,
+      code,
     });
-
-    return NextResponse.json({ success: true, playlistId });
   } catch (error) {
-    console.error("Playlist creation error:", error);
+    console.error("Plex auth initiation error:", error);
     return NextResponse.json(
-      { error: "Failed to create playlist" },
+      { error: "Failed to initiate authentication" },
       { status: 500 }
     );
   }

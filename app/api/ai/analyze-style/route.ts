@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios, { AxiosError } from "axios";
+import { getEnvVar, isTauri } from "@/lib/tauriApi";
+
+async function getApiKey(): Promise<string> {
+  if (isTauri()) {
+    return await getEnvVar("OPENROUTER_API_KEY");
+  }
+  return process.env.OPENROUTER_API_KEY || "";
+}
 
 export async function POST(request: NextRequest) {
-  const { OPENROUTER_API_KEY } = process.env;
+  const OPENROUTER_API_KEY = await getApiKey();
 
   if (!OPENROUTER_API_KEY) {
     console.error("Missing OpenRouter API key");

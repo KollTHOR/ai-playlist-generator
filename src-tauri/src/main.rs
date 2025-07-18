@@ -1,21 +1,14 @@
-mod env;
+// Prevents additional console window on Windows in release
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            env::get_env_var,
-            env::get_app_config
-        ])
-        .setup(|app| {
-            // Load environment variables from .env file
-            #[cfg(debug_assertions)]
-            {
-                dotenv::dotenv().ok();
-            }
-
+        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_http::init())
+        .setup(|_app| {
+            // Environment variables are handled by Next.js
             Ok(())
         })
         .run(tauri::generate_context!())

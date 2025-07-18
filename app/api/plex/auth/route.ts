@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { getEnvVar, isTauri } from "@/lib/tauriApi";
+
+async function getAppUrl(): Promise<string> {
+  if (isTauri()) {
+    return (await getEnvVar("NEXT_PUBLIC_APP_URL")) || "http://localhost:3000";
+  }
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,11 +34,8 @@ export async function GET(request: NextRequest) {
     const { id, code } = pinResponse.data;
 
     // Create proper Plex auth URL
-    const forwardUrl = encodeURIComponent(
-      `${
-        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-      }/auth/success`
-    );
+    const appUrl = await getAppUrl();
+    const forwardUrl = encodeURIComponent(`${appUrl}/auth/success`);
     const authUrl = `https://app.plex.tv/auth#?clientID=ai-playlist-generator&code=${code}&context%5Bdevice%5D%5Bproduct%5D=AI%20Playlist%20Generator&context%5Bdevice%5D%5Bversion%5D=1.0&context%5Bdevice%5D%5Bplatform%5D=Web&context%5Bdevice%5D%5BplatformVersion%5D=1.0&context%5Bdevice%5D%5Bdevice%5D=Web%20Browser&context%5Bdevice%5D%5BdeviceName%5D=AI%20Playlist%20Generator&forwardUrl=${forwardUrl}`;
 
     return NextResponse.json({

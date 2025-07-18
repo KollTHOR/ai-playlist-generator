@@ -1,9 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { getEnvVar, isTauri } from "@/lib/tauriApi";
+
+async function getPlexConfig(): Promise<{
+  PLEX_TOKEN: string;
+  PLEX_SERVER_URL: string;
+}> {
+  if (isTauri()) {
+    return {
+      PLEX_TOKEN: await getEnvVar("PLEX_TOKEN"),
+      PLEX_SERVER_URL: await getEnvVar("PLEX_SERVER_URL"),
+    };
+  }
+  return {
+    PLEX_TOKEN: process.env.PLEX_TOKEN || "",
+    PLEX_SERVER_URL: process.env.PLEX_SERVER_URL || "",
+  };
+}
 
 export async function GET(request: NextRequest) {
-  const { PLEX_TOKEN, PLEX_SERVER_URL } = process.env;
+  const { PLEX_TOKEN, PLEX_SERVER_URL } = await getPlexConfig();
 
   if (!PLEX_TOKEN || !PLEX_SERVER_URL) {
     return NextResponse.json(
