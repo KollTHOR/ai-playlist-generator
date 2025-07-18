@@ -1,7 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* your existing config */
 };
 
-export default nextConfig;
+const tauriNextConfig = {
+  ...nextConfig,
+  output: "export",
+  trailingSlash: true,
+  images: {
+    unoptimized: true,
+  },
+};
+
+export default process.env.TAURI === "true" ? tauriNextConfig : nextConfig;

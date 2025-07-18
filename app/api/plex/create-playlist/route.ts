@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     const identityResponse = await axios.get(`${PLEX_SERVER_URL}/identity`, {
       headers: {
         Accept: "application/json",
-        "X-Plex-Token": userToken,
       },
       timeout: 10000,
     });
