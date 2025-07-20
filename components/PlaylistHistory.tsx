@@ -28,6 +28,8 @@ const PlaylistHistory: React.FC = () => {
     localStorage.setItem("playlistHistory", JSON.stringify(newHistory));
   };
 
+  console.log();
+
   return (
     <div className="bg-gray-50 rounded-lg p-4">
       <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">

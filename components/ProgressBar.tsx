@@ -1,182 +1,180 @@
 "use client";
 
-import React from "react";
-import {
-  Check,
-  Music,
-  Brain,
-  Search,
-  Sparkles,
-  PlayCircle,
-} from "lucide-react";
-
-interface ProgressStep {
-  id: string;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  clickable: boolean;
-}
+import { CheckCircle, Circle, ArrowRight } from "lucide-react";
+import { PlaylistFlow } from "@/hooks/usePlaylistGenerator";
 
 interface ProgressBarProps {
-  currentStep: string;
+  currentStep: PlaylistFlow;
   completedSteps: string[];
   onStepClick: (stepId: string) => void;
-  isProcessing?: boolean;
+  isProcessing: boolean;
 }
+
+interface Step {
+  id: string;
+  name: string;
+  description: string;
+}
+
+const steps: Step[] = [
+  {
+    id: "model",
+    name: "Model Selection",
+    description: "Choose AI model",
+  },
+  {
+    id: "data",
+    name: "Load Data",
+    description: "Import music data",
+  },
+  {
+    id: "analyzing",
+    name: "Analysis",
+    description: "Analyze taste",
+  },
+  {
+    id: "searching",
+    name: "Search Tracks",
+    description: "Find recommendations",
+  },
+  {
+    id: "generating",
+    name: "Generate",
+    description: "Create playlist",
+  },
+  {
+    id: "review",
+    name: "Review",
+    description: "Final review",
+  },
+];
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
   currentStep,
-  completedSteps,
+  completedSteps = [], // Provide default empty array
   onStepClick,
-  isProcessing = false,
+  isProcessing,
 }) => {
-  const steps: ProgressStep[] = [
-    {
-      id: "model",
-      title: "AI Model",
-      description: "Choose model",
-      icon: <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />,
-      clickable: true,
-    },
-    {
-      id: "data",
-      title: "Data",
-      description: "Load music",
-      icon: <Music className="w-3 h-3 sm:w-4 sm:h-4" />,
-      clickable: completedSteps.includes("model"),
-    },
-    {
-      id: "analyzing",
-      title: "Analysis",
-      description: "Analyze taste",
-      icon: <Brain className="w-3 h-3 sm:w-4 sm:h-4" />,
-      clickable: completedSteps.includes("data"),
-    },
-    {
-      id: "filtering",
-      title: "Artists",
-      description: "Find available",
-      icon: <Search className="w-3 h-3 sm:w-4 sm:h-4" />,
-      clickable: completedSteps.includes("analyzing"),
-    },
-    {
-      id: "generating",
-      title: "Generate",
-      description: "Create playlist",
-      icon: <PlayCircle className="w-3 h-3 sm:w-4 sm:h-4" />,
-      clickable: completedSteps.includes("filtering"),
-    },
-    {
-      id: "review",
-      title: "Review",
-      description: "Finalize",
-      icon: <Check className="w-3 h-3 sm:w-4 sm:h-4" />,
-      clickable: completedSteps.includes("generating"),
-    },
-  ];
-
-  const getStepStatus = (stepId: string) => {
-    if (completedSteps.includes(stepId)) return "completed";
-    if (stepId === currentStep) return "current";
-    return "pending";
+  const isStepCompleted = (stepId: string): boolean => {
+    return completedSteps.includes(stepId);
   };
 
-  const getStepClasses = (step: ProgressStep) => {
-    const status = getStepStatus(step.id);
-    const isClickable = step.clickable && !isProcessing;
+  const isStepActive = (stepId: string): boolean => {
+    return currentStep === stepId;
+  };
 
-    const baseClasses = `
-      relative flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg transition-all duration-200 mb-1 sm:mb-2
-      ${isClickable ? "cursor-pointer" : "cursor-not-allowed"}
-    `;
+  const isStepClickable = (stepId: string): boolean => {
+    if (isProcessing) return false;
+    // First step is always clickable
+    if (stepId === "model") return true;
+    // Other steps are clickable if they're completed or if the previous steps are completed
+    const stepIndex = steps.findIndex((step) => step.id === stepId);
+    const previousStepsCompleted = steps
+      .slice(0, stepIndex)
+      .every((step) => isStepCompleted(step.id));
+    return previousStepsCompleted;
+  };
+
+  const getStepStatus = (stepId: string) => {
+    if (isStepCompleted(stepId)) return "completed";
+    if (isStepActive(stepId)) return "active";
+    if (isStepClickable(stepId)) return "available";
+    return "disabled";
+  };
+
+  const getStatusIcon = (stepId: string) => {
+    const status = getStepStatus(stepId);
 
     switch (status) {
       case "completed":
-        return `${baseClasses} bg-green-900/30 border border-green-700 text-green-200 ${
-          isClickable ? "hover:bg-green-900/50" : ""
-        }`;
-      case "current":
-        return `${baseClasses} bg-blue-900/30 border border-blue-700 text-blue-200 ${
-          isProcessing ? "animate-pulse" : ""
-        }`;
+        return <CheckCircle className="w-5 h-5 text-green-400" />;
+      case "active":
+        return (
+          <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          </div>
+        );
+      case "available":
+        return <Circle className="w-5 h-5 text-blue-400" />;
       default:
-        return `${baseClasses} bg-gray-700 border border-gray-600 text-gray-400`;
+        return <Circle className="w-5 h-5 text-gray-500" />;
     }
   };
 
-  const getIconClasses = (step: ProgressStep) => {
-    const status = getStepStatus(step.id);
+  const getStatusColors = (stepId: string) => {
+    const status = getStepStatus(stepId);
 
     switch (status) {
       case "completed":
-        return "w-6 h-6 sm:w-8 sm:h-8 bg-green-600 text-white rounded-full flex items-center justify-center flex-shrink-0";
-      case "current":
-        return `w-6 h-6 sm:w-8 sm:h-8 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 ${
-          isProcessing ? "animate-pulse" : ""
-        }`;
+        return "text-green-400 border-green-400 bg-green-900/20";
+      case "active":
+        return "text-blue-400 border-blue-400 bg-blue-900/30";
+      case "available":
+        return "text-blue-300 border-blue-500 bg-blue-900/10 hover:bg-blue-900/20";
       default:
-        return "w-6 h-6 sm:w-8 sm:h-8 bg-gray-600 text-gray-400 rounded-full flex items-center justify-center flex-shrink-0";
+        return "text-gray-500 border-gray-600 bg-gray-800/50";
     }
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-2 sm:p-4">
-      <div className="flex items-center justify-between mb-2 sm:mb-4">
-        <h3 className="text-sm sm:text-lg font-semibold text-gray-200">
-          Progress
-        </h3>
-        <div className="text-xs sm:text-sm text-gray-400">
-          {steps.findIndex((s) => s.id === currentStep) + 1}/{steps.length}
-        </div>
-      </div>
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium text-gray-300 mb-4">Progress</h4>
 
-      {/* Compact Vertical Progress Steps */}
-      <div className="space-y-1 sm:space-y-2">
-        {steps.map((step, index) => (
+      {steps.map((step, index) => {
+        const isClickable = isStepClickable(step.id);
+        const statusColors = getStatusColors(step.id);
+
+        return (
           <div key={step.id} className="relative">
-            <div
-              className={getStepClasses(step)}
-              onClick={() =>
-                step.clickable && !isProcessing && onStepClick(step.id)
-              }
+            <button
+              onClick={() => isClickable && onStepClick(step.id)}
+              disabled={!isClickable}
+              className={`w-full p-3 rounded-lg border transition-all duration-200 text-left ${statusColors} ${
+                isClickable ? "cursor-pointer" : "cursor-not-allowed"
+              }`}
             >
-              <div className={getIconClasses(step)}>
-                {completedSteps.includes(step.id) ? (
-                  <Check className="w-3 h-3 sm:w-4 sm:h-4" />
-                ) : (
-                  step.icon
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0">{getStatusIcon(step.id)}</div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">{step.name}</div>
+                  <div className="text-xs opacity-75">{step.description}</div>
+                </div>
+
+                {isStepActive(step.id) && isProcessing && (
+                  <div className="flex-shrink-0">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent" />
+                  </div>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-xs sm:text-sm truncate">
-                  {step.title}
-                </p>
-                <p className="text-xs opacity-75 truncate hidden sm:block">
-                  {step.description}
-                </p>
-              </div>
-            </div>
+            </button>
 
-            {/* Compact Connecting Line */}
+            {/* Connection line to next step */}
             {index < steps.length - 1 && (
-              <div className="flex justify-center">
-                <div className="w-0.5 h-2 sm:h-3 bg-gray-600 my-0.5 sm:my-1"></div>
+              <div className="flex justify-center py-1">
+                <ArrowRight className="w-4 h-4 text-gray-600" />
               </div>
             )}
           </div>
-        ))}
-      </div>
+        );
+      })}
 
-      {/* Compact Processing Indicator */}
-      {isProcessing && (
-        <div className="mt-2 sm:mt-4 text-center">
-          <div className="inline-flex items-center gap-1 sm:gap-2 text-blue-400">
-            <div className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs">Processing...</span>
-          </div>
+      {/* Progress Summary */}
+      <div className="mt-4 pt-4 border-t border-gray-700">
+        <div className="text-xs text-gray-400">
+          {completedSteps.length} of {steps.length} steps completed
         </div>
-      )}
+
+        {/* Progress bar */}
+        <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+          <div
+            className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-300"
+            style={{
+              width: `${(completedSteps.length / steps.length) * 100}%`,
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 };

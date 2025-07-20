@@ -1,4 +1,5 @@
-import { useState } from "react";
+// hooks/usePlaylistGenerator.ts
+import { useState, useCallback } from "react";
 import {
   PlexTrack,
   AIRecommendation,
@@ -37,25 +38,28 @@ export const usePlaylistGenerator = (userToken: string, userId: string) => {
 
   const { showError, showSuccess } = useToast();
 
-  const markStepCompleted = (stepId: string) => {
+  const markStepCompleted = useCallback((stepId: string) => {
     setCompletedSteps((prev) => {
       if (!prev.includes(stepId)) {
         return [...prev, stepId];
       }
       return prev;
     });
-  };
+  }, []);
 
-  const handleStepNavigation = (stepId: string) => {
-    const allowedSteps = ["model", ...completedSteps];
-    if (allowedSteps.includes(stepId)) {
-      setCurrentFlow(stepId as PlaylistFlow);
-      setIsProcessing(false);
-    }
-  };
+  const handleStepNavigation = useCallback(
+    (stepId: string) => {
+      const allowedSteps = ["model", ...completedSteps];
+      if (allowedSteps.includes(stepId)) {
+        setCurrentFlow(stepId as PlaylistFlow);
+        setIsProcessing(false);
+      }
+    },
+    [completedSteps]
+  );
 
   // Load Plex data
-  const loadPlexData = async (): Promise<void> => {
+  const loadPlexData = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
       const [historyRes, libraryRes] = await Promise.all([
@@ -79,6 +83,7 @@ export const usePlaylistGenerator = (userToken: string, userId: string) => {
         libraryData.totalLibraryCount || libraryData.length || 0
       );
       setUserLibrary(libraryData.tracks || libraryData);
+      setFilteredHistoryCount(history?.length || 0);
 
       markStepCompleted("data");
     } catch (error) {
@@ -87,10 +92,10 @@ export const usePlaylistGenerator = (userToken: string, userId: string) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userToken, userId, showError, markStepCompleted]);
 
   // Analyze music and get track recommendations
-  const analyzeMusic = async (): Promise<void> => {
+  const analyzeMusic = useCallback(async (): Promise<void> => {
     setCurrentFlow("analyzing");
     setIsProcessing(true);
 
@@ -136,15 +141,15 @@ export const usePlaylistGenerator = (userToken: string, userId: string) => {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [listeningHistory, selectedModel, showError, markStepCompleted]);
 
   // Search for tracks in Plex library
-  const searchTracks = async (): Promise<void> => {
+  const searchTracks = useCallback(async (): Promise<void> => {
     setCurrentFlow("searching");
     setIsProcessing(true);
 
     try {
-      // First get track recommendations from AI
+      // First get track recommendations from AI (using the music profile)
       const trackRecommendationsResponse = await fetch(
         "/api/ai/get-track-recommendations",
         {
@@ -180,10 +185,10 @@ export const usePlaylistGenerator = (userToken: string, userId: string) => {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [musicProfile, selectedModel, userToken, showError, markStepCompleted]);
 
   // Generate final playlist
-  const generatePlaylist = async (): Promise<void> => {
+  const generatePlaylist = useCallback(async (): Promise<void> => {
     setCurrentFlow("generating");
     setIsProcessing(true);
 
@@ -211,10 +216,16 @@ export const usePlaylistGenerator = (userToken: string, userId: string) => {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [
+    musicProfile,
+    trackAvailability,
+    selectedModel,
+    showError,
+    markStepCompleted,
+  ]);
 
   // Create playlist in Plex
-  const createPlaylist = async (): Promise<void> => {
+  const createPlaylist = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
       const matchedTracks = recommendations
@@ -254,7 +265,7 @@ export const usePlaylistGenerator = (userToken: string, userId: string) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [recommendations, userLibrary, userToken, showError, showSuccess]);
 
   return {
     currentFlow,

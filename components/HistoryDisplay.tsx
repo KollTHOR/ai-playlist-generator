@@ -13,9 +13,9 @@ import {
 import { PlexTrack } from "@/types";
 
 interface HistoryDisplayProps {
-  history: PlexTrack[];
+  history: PlexTrack[]; // Add this back
   userToken: string;
-  onFilteredCountChange?: (count: number) => void; // Add this prop
+  onFilteredCountChange?: (count: number) => void;
 }
 
 const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
@@ -39,16 +39,6 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
     { value: "quarter", label: "Last 3 Months" },
     { value: "year", label: "Last Year" },
   ];
-
-  useEffect(() => {
-    const filtered = filterHistoryByTimeFrame(history, selectedTimeFrame);
-    setFilteredHistory(filtered);
-
-    // Call the callback with the filtered count
-    if (onFilteredCountChange) {
-      onFilteredCountChange(filtered.length);
-    }
-  }, [history, selectedTimeFrame, onFilteredCountChange]);
 
   // Filter history by time frame
   const filterHistoryByTimeFrame = (
@@ -85,11 +75,15 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
     });
   };
 
-  // Update filtered history when timeframe or history changes
   useEffect(() => {
     const filtered = filterHistoryByTimeFrame(history, selectedTimeFrame);
     setFilteredHistory(filtered);
-  }, [history, selectedTimeFrame]);
+
+    // Call the callback with the filtered count
+    if (onFilteredCountChange) {
+      onFilteredCountChange(filtered.length);
+    }
+  }, [history, selectedTimeFrame, onFilteredCountChange]);
 
   // Calculate pagination based on filtered history
   const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
@@ -206,6 +200,10 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
     return pages;
   };
 
+  console.log("History length:", history.length);
+  console.log("Filtered history length:", filteredHistory.length);
+  console.log("Current items:", currentItems);
+
   return (
     <div className="bg-gray-700 rounded-lg border border-gray-600 flex flex-col h-full max-h-[500px]">
       {/* Header */}
@@ -259,7 +257,8 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
             <Music className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No listening history found for the selected time frame.</p>
             <p className="text-sm mt-2">
-              Try selecting a different time period.
+              Try selecting a different time period or check your Plex
+              connection.
             </p>
           </div>
         ) : (
@@ -324,7 +323,7 @@ const HistoryDisplay: React.FC<HistoryDisplayProps> = ({
                       {/* Play Time */}
                       <div className="flex items-center gap-1 text-xs text-gray-400 ml-2">
                         <Clock className="w-3 h-3" />
-                        <span>{formatDate(track.viewedAt)}</span>
+                        <span>{formatDate(track.viewedAt as number)}</span>
                       </div>
                     </div>
                   </div>

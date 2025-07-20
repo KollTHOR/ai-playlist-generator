@@ -81,7 +81,7 @@ const NavigationFooter: React.FC<NavigationFooterProps> = ({
                 disabled={listeningHistory.length === 0}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 text-white py-2 px-3 sm:px-4 rounded-lg transition-colors text-sm sm:text-base"
               >
-                Analyze ({filteredHistoryCount || listeningHistory.length})
+                Analyze ({filteredHistoryCount})
               </button>
             </div>
           )
