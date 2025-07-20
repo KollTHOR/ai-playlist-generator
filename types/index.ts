@@ -1,44 +1,20 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// Complete types.ts file
 export interface PlexTrack {
   ratingKey: string;
-  key: string;
   title: string;
-  parentTitle: string;
-  grandparentTitle: string;
-  type: string;
-  thumb?: string;
-  parentThumb?: string;
-  grandparentThumb?: string;
-  index: number;
-  parentIndex: number;
-  viewedAt: number; // This is the timestamp we need
-  accountID: number;
-  deviceID: number;
-  historyKey?: string;
-  librarySectionID?: string;
-  parentKey?: string;
-  grandparentKey?: string;
-  grandparentArt?: string;
-}
-
-export interface LastFmTrack {
-  name: string;
-  artist: {
-    name: string;
-    mbid: string;
-    url: string;
-  };
-  url: string;
-  duration: string;
-  playcount: string;
-  listeners: string;
-}
-
-export interface AIRecommendation {
   artist: string;
-  title: string;
-  album?: string;
-  reason?: string;
+  grandparentTitle: string;
+  album: string;
+  parentTitle: string;
+  track?: string;
+  trackNumber?: number;
+  year?: number;
+  duration?: number;
+  addedAt?: number;
+  updatedAt?: number;
+  viewedAt?: number;
+  thumb?: string;
+  art?: string;
 }
 
 export interface PlaylistRequest {
@@ -46,35 +22,44 @@ export interface PlaylistRequest {
   trackIds: string[];
 }
 
-export interface OpenRouterModel {
-  id: string;
-  name: string;
-  description?: string;
-  context_length: number;
-  pricing: {
-    prompt: string;
-    completion: string;
-  };
-  top_provider: {
-    max_completion_tokens?: number;
-  };
-  architecture?: {
-    modality: string;
-    tokenizer: string;
-    instruct_type?: string;
-  };
-  per_request_limits?: {
-    prompt_tokens: string;
-    completion_tokens: string;
-  };
+export interface AIRecommendation {
+  artist: string;
+  title: string;
+  album?: string;
+  reason: string;
+  confidence?: string;
+  genres?: string[];
 }
 
-export interface ModelOption {
-  id: string;
-  name: string;
-  provider: string;
-  isFree: boolean;
-  contextLength: number;
-  description?: string;
-  category?: string;
+export interface MusicProfile {
+  primaryGenres: string[];
+  moods: string[];
+  styles: string[];
+  era: string;
+  energy: string;
+}
+
+export interface RecommendedTrack {
+  artist: string;
+  title: string;
+  album: string;
+  reason: string;
+  confidence: string;
+  genres?: string[];
+}
+
+export interface TrackAvailabilityItem extends RecommendedTrack {
+  available: boolean;
+  plexData: PlexTrack | null;
+}
+
+export interface TrackAvailability {
+  totalTracksRecommended: number;
+  availableTracks: number;
+  trackAvailability: TrackAvailabilityItem[];
+}
+
+export interface AITrackAnalysisResponse {
+  musicProfile: MusicProfile;
+  recommendedTracks: RecommendedTrack[];
 }

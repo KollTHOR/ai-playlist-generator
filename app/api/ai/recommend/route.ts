@@ -15,50 +15,44 @@ export async function POST(request: NextRequest) {
   try {
     const {
       musicProfile,
-      artistAvailability,
-      albumAvailability,
+      trackAvailability,
       playlistLength = 20,
       model = "deepseek/deepseek-r1",
     } = await request.json();
 
-    if (!musicProfile || !artistAvailability || !albumAvailability) {
+    if (!musicProfile || !trackAvailability) {
       return NextResponse.json(
         { error: "Missing required data" },
         { status: 400 }
       );
     }
 
-    const availableArtists = artistAvailability.filter((a: any) => a.available);
-    const availableAlbums = albumAvailability.filter((a: any) => a.available);
+    const availableTracks = trackAvailability.filter((t: any) => t.available);
 
-    if (availableArtists.length === 0) {
+    if (availableTracks.length === 0) {
       return NextResponse.json(
-        { error: "No available artists found" },
+        { error: "No available tracks found" },
         { status: 400 }
       );
     }
 
     const systemPrompt = `You are a JSON-only playlist API. You must return a valid JSON array without any formatting, explanations, or markdown. Your response must be parseable JSON that starts with [ and ends with ].`;
 
-    const userPrompt = `Create a ${playlistLength}-song playlist based on this profile and available artists.
+    const userPrompt = `Create a ${playlistLength}-song playlist from these available tracks.
 
 MUSIC PROFILE:
 Genres: ${musicProfile.primaryGenres?.join(", ") || "Various"}
 Moods: ${musicProfile.moods?.join(", ") || "Various"}
 Energy: ${musicProfile.energy || "Medium"}
 
-AVAILABLE ARTISTS:
-${availableArtists
-  .slice(0, 25)
-  .map((artist: any, index: number) => `${index + 1}. ${artist.name}`)
-  .join("\n")}
-
-AVAILABLE ALBUMS:
-${availableAlbums
-  .slice(0, 15)
+AVAILABLE TRACKS:
+${availableTracks
+  .slice(0, 40)
   .map(
-    (album: any, index: number) =>
-      `${index + 1}. ${album.artist} - ${album.album}`
+    (track: any, index: number) =>
+      `${index + 1}. ${track.artist} - ${track.title} (${track.album}) - ${
+        track.reason
+      }`
   )
   .join("\n")}
 
@@ -73,12 +67,12 @@ IMPORTANT: Return only valid JSON array. No markdown, no explanations, no code b
   }
 ]
 
-Create exactly ${playlistLength} songs using only the available artists and albums listed above. Focus on variety and flow. Return only the JSON array.`;
+Select exactly ${playlistLength} tracks from the available tracks above. Focus on creating a cohesive flow while maximizing diversity across different artists. Do not repeat the same artist unless absolutely necessary for flow. Return only the JSON array.`;
 
     console.log(
       "Generating playlist with",
-      availableArtists.length,
-      "available artists"
+      availableTracks.length,
+      "available tracks"
     );
 
     const response = await axios.post(
@@ -89,7 +83,7 @@ Create exactly ${playlistLength} songs using only the available artists and albu
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.3,
+        temperature: 0.4,
         max_tokens: 2500,
         top_p: 0.9,
       },
@@ -106,11 +100,6 @@ Create exactly ${playlistLength} songs using only the available artists and albu
 
     const aiResponse = response.data.choices[0].message.content.trim();
     console.log("AI playlist response length:", aiResponse.length);
-    console.log("AI response starts with:", aiResponse.substring(0, 50));
-    console.log(
-      "AI response ends with:",
-      aiResponse.substring(aiResponse.length - 50)
-    );
 
     try {
       const recommendations = JSON.parse(aiResponse);
@@ -135,49 +124,25 @@ Create exactly ${playlistLength} songs using only the available artists and albu
       console.error("JSON parsing failed:", parseError);
       console.error("Raw AI response:", aiResponse);
 
-      // Fallback playlist from available artists
-      const fallbackRecommendations = availableArtists
+      // Fallback playlist from available tracks
+      const fallbackRecommendations = availableTracks
         .slice(0, playlistLength)
-        .map((artist: any, index: number) => ({
-          artist: artist.name,
-          title: `Popular Song ${index + 1}`,
-          album: "Unknown Album",
+        .map((track: any) => ({
+          artist: track.artist,
+          title: track.title,
+          album: track.album,
           reason: "Fallback recommendation",
         }));
 
       console.log(
         "Using fallback recommendations:",
         fallbackRecommendations.length,
-        "songs"
+        "tracks"
       );
       return NextResponse.json(fallbackRecommendations);
     }
   } catch (error) {
     console.error("Playlist generation error:", error);
-
-    if (error instanceof AxiosError) {
-      if (error.code === "ECONNABORTED") {
-        return NextResponse.json(
-          { error: "Request timed out. Please try again." },
-          { status: 408 }
-        );
-      }
-
-      if (error.response?.status === 401) {
-        return NextResponse.json(
-          { error: "Invalid OpenRouter API key" },
-          { status: 401 }
-        );
-      }
-
-      if (error.response?.status === 429) {
-        return NextResponse.json(
-          { error: "Rate limit exceeded. Please try again later." },
-          { status: 429 }
-        );
-      }
-    }
-
     return NextResponse.json(
       { error: "Failed to generate playlist" },
       { status: 500 }
