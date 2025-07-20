@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
+import { PlexAPI } from "@lukehagar/plexjs";
+import {
+  CreatePlaylistQueryParamType,
+  Smart,
+} from "@lukehagar/plexjs/sdk/models/operations";
 import { PlaylistRequest } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -17,15 +21,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Parse request body
-    console.log("📥 Parsing request body...");
     const body: PlaylistRequest & { userToken: string } = await request.json();
     const { title, trackIds, userToken } = body;
 
     console.log("Request body parsed:", {
       title,
       trackIdsCount: trackIds?.length || 0,
-      trackIds: trackIds?.slice(0, 5), // Show first 5 IDs
+      trackIds: trackIds?.slice(0, 5),
       userTokenPresent: !!userToken,
       userTokenLength: userToken?.length || 0,
     });
@@ -46,160 +48,164 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Get the server machine identifier
-    console.log("🔍 Step 1: Getting server machine identifier...");
-    console.log("Identity endpoint URL:", `${PLEX_SERVER_URL}/identity`);
+    // Initialize Plex API client
+    console.log("🔧 Initializing Plex API client...");
+    const client = new PlexAPI({
+      serverURL: PLEX_SERVER_URL,
+      accessToken: userToken,
+    });
 
-    let identityResponse;
-    try {
-      identityResponse = await axios.get(`${PLEX_SERVER_URL}/identity`, {
-        headers: {
-          Accept: "application/json",
-        },
-        timeout: 10000,
-      });
-      console.log("✅ Identity response received");
-      console.log("Identity response status:", identityResponse.status);
-      console.log(
-        "Identity response data:",
-        JSON.stringify(identityResponse.data, null, 2)
-      );
-    } catch (identityError) {
-      console.error("❌ Identity request failed:", identityError);
-      if (axios.isAxiosError(identityError)) {
-        console.error("Identity error details:", {
-          message: identityError.message,
-          code: identityError.code,
-          response: identityError.response?.data,
-          status: identityError.response?.status,
-        });
-      }
-      return NextResponse.json(
-        { error: "Failed to connect to Plex server for identity" },
-        { status: 500 }
-      );
-    }
-
+    // Get server identity for machine identifier
+    console.log("🔍 Getting server identity...");
+    const identity = await client.server.getServerIdentity();
     const machineIdentifier =
-      identityResponse.data?.MediaContainer?.machineIdentifier;
+      identity.object?.mediaContainer?.machineIdentifier;
 
     if (!machineIdentifier) {
-      console.error("❌ No machine identifier found in response");
-      console.error(
-        "Full identity response:",
-        JSON.stringify(identityResponse.data, null, 2)
-      );
+      console.error("❌ No machine identifier found");
       return NextResponse.json(
-        { error: "Failed to get Plex server machine identifier" },
+        { error: "Failed to get server machine identifier" },
         { status: 500 }
       );
     }
 
     console.log("✅ Machine identifier found:", machineIdentifier);
 
-    // Step 2: Create the playlist with correct parameters
-    console.log("🎵 Step 2: Creating playlist...");
-
-    // Build the track URIs first
-    const trackUris = trackIds
-      .map(
-        (id) =>
-          `server://${machineIdentifier}/com.plexapp.plugins.library/library/metadata/${id}`
-      )
-      .join(",");
-
-    console.log("Track URIs built:", {
-      machineIdentifier,
-      trackCount: trackIds.length,
-      firstUri: trackUris.split(",")[0],
-      uriLength: trackUris.length,
+    // Step 1: Create empty playlist
+    console.log("🎵 Step 1: Creating empty playlist...");
+    const playlistResponse = await client.playlists.createPlaylist({
+      title: title,
+      type: CreatePlaylistQueryParamType.Audio,
+      smart: Smart.Zero,
+      uri: "", // Empty URI to create empty playlist
     });
 
-    // Create playlist with tracks in one request
-    const createUrl = `${PLEX_SERVER_URL}/playlists`;
-    const createParams = {
-      type: "audio",
-      title: title,
-      smart: "0",
-      uri: trackUris, // Include tracks during creation
-    };
+    console.log("✅ Empty playlist creation response received");
 
-    console.log("Playlist creation URL:", createUrl);
-    console.log("Playlist params:", createParams);
-
-    let createResponse;
-    try {
-      createResponse = await axios.post(createUrl, null, {
-        params: createParams,
-        headers: {
-          Accept: "application/json",
-          "X-Plex-Token": userToken,
-        },
-        timeout: 15000, // Increased timeout for track addition
-      });
-      console.log("✅ Playlist creation response received");
-      console.log("Playlist creation status:", createResponse.status);
-      console.log(
-        "Playlist creation data:",
-        JSON.stringify(createResponse.data, null, 2)
-      );
-    } catch (createError) {
-      console.error("❌ Playlist creation failed:", createError);
-      if (axios.isAxiosError(createError)) {
-        console.error("Playlist creation error details:", {
-          message: createError.message,
-          code: createError.code,
-          response: createError.response?.data,
-          status: createError.response?.status,
-          url: createError.config?.url,
-          params: createError.config?.params,
-        });
-      }
-      return NextResponse.json(
-        { error: "Failed to create playlist on Plex server" },
-        { status: 500 }
-      );
-    }
-
-    const playlistMetadata = createResponse.data?.MediaContainer?.Metadata;
+    const playlistMetadata = playlistResponse.object?.mediaContainer?.metadata;
     if (!playlistMetadata || playlistMetadata.length === 0) {
       console.error("❌ No playlist metadata returned");
-      console.error(
-        "Create response data:",
-        JSON.stringify(createResponse.data, null, 2)
-      );
       return NextResponse.json(
         { error: "Failed to create playlist: no metadata returned" },
         { status: 500 }
       );
     }
 
-    const playlistId = playlistMetadata[0].ratingKey;
-    console.log("✅ Playlist created successfully with ID:", playlistId);
-    console.log("=== PLAYLIST CREATION DEBUG END ===");
+    const playlist = playlistMetadata[0];
+    const playlistId = playlist.ratingKey;
 
-    return NextResponse.json({ success: true, playlistId });
-  } catch (error) {
-    console.error("❌ Unexpected error in playlist creation:", error);
+    console.log("✅ Empty playlist created successfully:", {
+      id: playlistId,
+      title: playlist.title,
+      leafCount: playlist.leafCount,
+    });
 
-    if (axios.isAxiosError(error)) {
-      console.error("Axios error details:", {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        status: error.response?.status,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          params: error.config?.params,
-        },
-      });
+    // Step 2: Add ALL tracks individually (since we know this works)
+    console.log("📝 Step 2: Adding tracks individually to playlist...");
+    console.log(
+      `Adding ${trackIds.length} tracks to playlist ID: ${playlistId}`
+    );
+
+    let successfullyAdded = 0;
+    const failedTracks = [];
+    let totalDuration = 0;
+
+    for (let i = 0; i < trackIds.length; i++) {
+      const trackId = trackIds[i];
+      const singleTrackUri = `server://${machineIdentifier}/com.plexapp.plugins.library/library/metadata/${trackId}`;
+
+      try {
+        console.log(`Adding track ${i + 1}/${trackIds.length}: ${trackId}`);
+
+        const singleAddResponse = await client.playlists.addPlaylistContents(
+          parseFloat(playlistId as string),
+          singleTrackUri,
+          undefined
+        );
+
+        const added =
+          singleAddResponse.object?.mediaContainer?.leafCountAdded || 0;
+        const updatedPlaylist =
+          singleAddResponse.object?.mediaContainer?.metadata?.[0];
+
+        if (added > 0) {
+          successfullyAdded += added;
+          totalDuration = updatedPlaylist?.duration || totalDuration;
+          console.log(
+            `✅ Successfully added track ${i + 1}/${
+              trackIds.length
+            } (ID: ${trackId}), total tracks: ${successfullyAdded}`
+          );
+        } else {
+          console.log(
+            `⚠️ Track ${
+              i + 1
+            } (ID: ${trackId}) was not added - leafCountAdded: ${added}`
+          );
+          failedTracks.push({
+            index: i + 1,
+            trackId,
+            reason: "leafCountAdded was 0",
+          });
+        }
+
+        // Small delay to avoid overwhelming the server
+        if (i < trackIds.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      } catch (singleError) {
+        console.error(
+          `❌ Failed to add track ${i + 1} (ID: ${trackId}):`,
+          singleError
+        );
+        failedTracks.push({
+          index: i + 1,
+          trackId,
+          reason:
+            singleError instanceof Error
+              ? singleError.message
+              : "Unknown error",
+        });
+      }
     }
 
+    console.log("✅ Finished adding tracks to playlist");
+    console.log(
+      `Final stats: ${successfullyAdded}/${trackIds.length} tracks added successfully`
+    );
+
+    if (failedTracks.length > 0) {
+      console.log("❌ Failed tracks:", failedTracks);
+    }
+
+    // Convert duration from milliseconds to a readable format
+    const durationMinutes = Math.round(totalDuration / 60000);
+
+    console.log("=== PLAYLIST CREATION DEBUG END ===");
+
+    return NextResponse.json({
+      success: true,
+      playlistId: playlistId,
+      tracksAdded: successfullyAdded,
+      totalTracksRequested: trackIds.length,
+      failedTracks: failedTracks.length,
+      failedTrackDetails: failedTracks,
+      playlist: {
+        title: title,
+        duration: totalDuration,
+        durationMinutes: durationMinutes,
+        key: playlist.key,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Unexpected error in playlist creation:", error);
     console.log("=== PLAYLIST CREATION DEBUG END (ERROR) ===");
 
     return NextResponse.json(
-      { error: "Failed to create playlist" },
+      {
+        error: "Failed to create playlist",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }
